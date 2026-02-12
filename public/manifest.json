@@ -1,19 +1,24 @@
 {
-  "name": "키움증권 자동매매",
-  "short_name": "키움매매",
-  "description": "키움증권 REST API를 활용한 주식 자동매매 시스템",
+  "name": "디컴소프트",
+  "short_name": "디컴소프트",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1e40af",
-  "orientation": "portrait",
+  "theme_color": "#2563eb",
+  "description": "노트북LM 슬라이드 편집기, 뭉개진 한글을 깨끗하게 인식하는 AI 한글 에디터",
   "icons": [
     {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
 }
-

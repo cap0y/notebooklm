@@ -4,3 +4,19 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# 환경변수 (비밀키 포함)
+.env
+.env.*
+
+# Replit 임시 파일
+.local/
+.replit
+replit.nix
+.cache/
+
+# 업로드 파일
+uploads/
+
+# OS
+Thumbs.db

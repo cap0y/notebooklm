@@ -1,0 +1,87 @@
+# Robots.txt for DecomDirectTrade
+User-agent: *
+
+# 허용할 페이지
+Allow: /
+Allow: /shop
+Allow: /board
+Allow: /company-intro
+Allow: /ceo-intro
+Allow: /directions
+Allow: /erp-construction
+Allow: /erp-groupware-mobile
+Allow: /erp-menu-structure
+Allow: /barogeorrae-app
+Allow: /savebox-intro
+Allow: /training-platform-intro
+Allow: /decomsoft-ai-system
+Allow: /barcode-mail-pdf
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /cookie-policy
+Allow: /help-center
+
+# 관리 페이지들 허용
+Allow: /accounting-management1
+Allow: /accounting-management2
+Allow: /hr-management
+Allow: /payroll-management
+Allow: /basic-accounting-logistics
+Allow: /drawing-design-management
+Allow: /sales-delivery-management
+Allow: /export-import-management
+Allow: /production-delivery-quality
+Allow: /procurement-materials-outsourcing
+Allow: /inventory-cost-management
+
+# 차단할 페이지 (사용자 전용 페이지)
+Disallow: /login
+Disallow: /register
+Disallow: /my-orders
+Disallow: /checkout
+Disallow: /settings
+Disallow: /shop-admin
+Disallow: /notebooks
+Disallow: /board/create
+Disallow: /board/*/edit
+Disallow: /oauth/
+
+# 업로드 및 임시 파일 차단
+Disallow: /uploads/
+Disallow: /tmp/
+Disallow: /_next/
+Disallow: /api/
+
+# 특정 파일 형식 차단
+Disallow: *.json
+Disallow: *.xml$
+Disallow: /sw.js
+
+# 사이트맵 위치 지정
+Sitemap: https://notebooklm.decomsoft.com/sitemap.xml
+
+# 크롤링 지연시간 (1초)
+Crawl-delay: 1
+
+# 검색 엔진별 특별 규칙
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Yandex
+Allow: /
+Crawl-delay: 1
+
+# 네이버 검색엔진
+User-agent: Yeti
+Allow: /
+Crawl-delay: 1
+
+# 다음 검색엔진
+User-agent: Daumoa
+Allow: /
+Crawl-delay: 1

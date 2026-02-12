@@ -1,11 +1,22 @@
 // Bump CACHE_VERSION when deploying to ensure clients get fresh assets
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = Date.now();
 const CACHE_NAME = `dcsoft-gw-${CACHE_VERSION}`;
 const urlsToCache = ["/", "/manifest.json", "/images/decomsoft-logo.svg"];
+
+// 개발환경 감지 (localhost 또는 개발 서버)
+const isDevelopment =
+  self.location.hostname === "localhost" ||
+  self.location.hostname === "127.0.0.1" ||
+  self.location.hostname.includes("192.168.") ||
+  self.location.port !== "";
 
 // Install event
 self.addEventListener("install", (event) => {
   self.skipWaiting();
+  // 개발환경에서는 캐시하지 않음
+  if (isDevelopment) {
+    return;
+  }
   event.waitUntil(
     caches
       .open(CACHE_NAME)
@@ -17,21 +28,38 @@ self.addEventListener("install", (event) => {
 // Fetch event
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+
+  // 개발환경에서는 항상 네트워크 우선
+  if (isDevelopment) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
   // Bypass non-GET
   if (req.method !== "GET") {
     event.respondWith(fetch(req));
     return;
   }
 
-  // Always bypass caching for API calls to avoid stale data (e.g., chat)
+  // 외부 도메인(다른 origin) 요청은 Service Worker를 우회
   try {
     const url = new URL(req.url);
     const isSameOrigin = url.origin === self.location.origin;
-    if (isSameOrigin && url.pathname.startsWith("/api/")) {
+
+    // 외부 도메인 요청은 처리하지 않음 (Google Fonts, CDN 등)
+    if (!isSameOrigin) {
+      return; // Service Worker를 우회하여 네트워크 요청이 직접 처리되도록 함
+    }
+
+    // API 호출은 항상 네트워크 우선
+    if (url.pathname.startsWith("/api/")) {
       event.respondWith(fetch(req));
       return;
     }
-  } catch (_) {}
+  } catch (_) {
+    // URL 파싱 실패 시 네트워크 요청 통과
+    return;
+  }
 
   // Network-first for navigation and HTML
   if (
