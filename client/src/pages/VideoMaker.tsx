@@ -82,36 +82,53 @@ const VideoMaker: React.FC = () => {
 
   /**
    * 비디오 파일에서 첫 프레임(썸네일)을 추출
+   * ⚠️ 전달받은 blobUrl은 해제하지 않음 — 슬라이드에서 계속 사용하므로 호출자가 관리
    */
-  const extractVideoThumbnail = (videoUrl: string): Promise<{ thumbnail: string; duration: number }> => {
+  const extractVideoThumbnail = (file: File): Promise<{ thumbnail: string; duration: number; blobUrl: string }> => {
     return new Promise((resolve, reject) => {
+      // 썸네일 추출 전용 blob URL (추출 후 해제)
+      const tempUrl = URL.createObjectURL(file)
       const video = document.createElement('video')
-      video.crossOrigin = 'anonymous'
-      video.preload = 'metadata'
+      video.preload = 'auto' // 프레임 데이터까지 로드
       video.muted = true
+      video.playsInline = true
 
-      video.onloadedmetadata = () => {
-        video.currentTime = Math.min(1, video.duration * 0.1) // 10% 지점 또는 1초
+      video.onloadeddata = () => {
+        // 프레임 데이터 로드 완료 후 seek
+        video.currentTime = Math.min(1, video.duration * 0.1)
       }
 
       video.onseeked = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) { reject(new Error('Canvas context 생성 실패')); return }
-        ctx.drawImage(video, 0, 0)
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
-        resolve({ thumbnail, duration: video.duration })
-        URL.revokeObjectURL(video.src)
+        // seek 후 한 프레임 대기하여 화면에 그려진 것 확인
+        requestAnimationFrame(() => {
+          const canvas = document.createElement('canvas')
+          canvas.width = video.videoWidth || 1920
+          canvas.height = video.videoHeight || 1080
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            URL.revokeObjectURL(tempUrl)
+            reject(new Error('Canvas context 생성 실패'))
+            return
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
+          const duration = video.duration
+
+          // 썸네일용 임시 URL 해제
+          URL.revokeObjectURL(tempUrl)
+
+          // 실제 사용할 blob URL을 별도로 생성
+          const permanentUrl = URL.createObjectURL(file)
+          resolve({ thumbnail, duration, blobUrl: permanentUrl })
+        })
       }
 
       video.onerror = () => {
+        URL.revokeObjectURL(tempUrl)
         reject(new Error('비디오를 로드할 수 없습니다'))
-        URL.revokeObjectURL(video.src)
       }
 
-      video.src = videoUrl
+      video.src = tempUrl
     })
   }
 
@@ -152,9 +169,8 @@ const VideoMaker: React.FC = () => {
           })
         } else if (file.type.startsWith('video/')) {
           // 비디오 파일 → 썸네일 추출 + blob URL 저장
-          const blobUrl = URL.createObjectURL(file)
           try {
-            const { thumbnail, duration } = await extractVideoThumbnail(blobUrl)
+            const { thumbnail, duration, blobUrl } = await extractVideoThumbnail(file)
             newSlides.push({
               id: Math.random().toString(36).substr(2, 9),
               imageUrl: thumbnail,
@@ -167,7 +183,6 @@ const VideoMaker: React.FC = () => {
             })
           } catch (err) {
             console.error('비디오 처리 실패:', err)
-            URL.revokeObjectURL(blobUrl)
             alert(`비디오 "${file.name}"을(를) 로드할 수 없습니다.`)
           }
         } else {
