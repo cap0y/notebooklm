@@ -7,6 +7,7 @@ interface EditorPanelProps {
   onUpdate: (id: string, updates: Partial<Slide>) => void
   onGenerateAudio: (id: string, text: string, voice: VoiceName) => void
   onGenerateScript: (id: string, level: ScriptLevel) => void
+  onLoadSubtitleFile: (file: File) => void
   subtitleStyle: SubtitleStyle
   onUpdateSubtitleStyle: (style: SubtitleStyle) => void
   selectedVoice: VoiceName
@@ -26,6 +27,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onUpdate,
   onGenerateAudio,
   onGenerateScript,
+  onLoadSubtitleFile,
   subtitleStyle,
   onUpdateSubtitleStyle,
   selectedVoice,
@@ -34,6 +36,15 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onScriptLevelChange,
 }) => {
   const [isScriptGenerating, setIsScriptGenerating] = useState(false)
+  const srtInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleSrtFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      onLoadSubtitleFile(file)
+      e.target.value = '' // 같은 파일 재선택 가능하도록 초기화
+    }
+  }
 
   const handleScriptGen = async () => {
     if (!slide) return
@@ -82,6 +93,26 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
               <option value="elementary">초등학생</option>
               <option value="senior">시니어</option>
             </select>
+
+            {/* SRT 자막 파일 불러오기 버튼 */}
+            <input
+              ref={srtInputRef}
+              type="file"
+              accept=".srt,.txt"
+              className="hidden"
+              onChange={handleSrtFileSelect}
+            />
+            <button
+              onClick={() => srtInputRef.current?.click()}
+              className="text-xs px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 transition-colors"
+              title="SRT 자막 파일을 불러와 전체 슬라이드에 배분합니다"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+                <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+              </svg>
+              자막 불러오기
+            </button>
 
             {/* AI 자막 생성 버튼 */}
             <button

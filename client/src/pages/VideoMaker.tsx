@@ -250,6 +250,76 @@ const VideoMaker: React.FC = () => {
     }
   }
 
+  /**
+   * SRT 자막 파일 파싱
+   * SRT 포맷: 번호 → 타임코드 → 텍스트 (빈 줄로 구분)
+   */
+  const parseSrt = (content: string): { index: number; text: string }[] => {
+    const entries: { index: number; text: string }[] = []
+    // \r\n과 \n 모두 지원, 블록 단위 분리
+    const blocks = content.trim().replace(/\r\n/g, '\n').split(/\n\n+/)
+
+    for (const block of blocks) {
+      const lines = block.trim().split('\n')
+      if (lines.length < 3) continue // 번호 + 타임코드 + 최소 1줄 텍스트
+
+      const index = parseInt(lines[0], 10)
+      if (isNaN(index)) continue
+
+      // 타임코드 줄(00:00:00,000 --> 00:00:00,000) 건너뛰고 텍스트만 추출
+      const textLines = lines.slice(2)
+      const text = textLines.join(' ').trim()
+      if (text) entries.push({ index, text })
+    }
+
+    return entries
+  }
+
+  /**
+   * 전체 자막 파일(SRT) 불러오기
+   * → SRT 항목들을 현재 슬라이드 수에 맞게 균등 배분
+   */
+  const handleLoadSubtitleFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      if (!content) return
+
+      const entries = parseSrt(content)
+      if (entries.length === 0) {
+        alert('유효한 자막 항목이 없습니다.\nSRT 형식을 확인해 주세요.')
+        return
+      }
+
+      if (slides.length === 0) {
+        alert('슬라이드가 없습니다.\n먼저 이미지나 PDF를 업로드해 주세요.')
+        return
+      }
+
+      // 자막 항목들을 슬라이드 수에 맞게 균등 배분
+      const slideCount = slides.length
+      const entriesPerSlide = Math.ceil(entries.length / slideCount)
+
+      setSlides((prev) =>
+        prev.map((slide, idx) => {
+          const startIdx = idx * entriesPerSlide
+          const endIdx = Math.min(startIdx + entriesPerSlide, entries.length)
+          const assignedEntries = entries.slice(startIdx, endIdx)
+
+          if (assignedEntries.length === 0) return slide
+
+          const script = assignedEntries.map((e) => e.text).join('\n')
+          const subtitle = assignedEntries[0].text // 첫 줄을 자막 미리보기로
+
+          return { ...slide, script, subtitle }
+        }),
+      )
+
+      alert(`자막 파일 불러오기 완료!\n\n총 ${entries.length}개 항목 → ${slideCount}개 슬라이드에 배분되었습니다.`)
+    }
+    reader.readAsText(file, 'utf-8')
+  }
+
   /** AI 나레이션 대본 생성 */
   const performScriptGeneration = async (id: string, level: ScriptLevel) => {
     const targetSlide = slidesRef.current.find((s) => s.id === id)
@@ -659,6 +729,7 @@ const VideoMaker: React.FC = () => {
             onUpdate={updateSlide}
             onGenerateAudio={handleGenerateVoice}
             onGenerateScript={(id, level) => performScriptGeneration(id, level)}
+            onLoadSubtitleFile={handleLoadSubtitleFile}
             subtitleStyle={subtitleStyle}
             onUpdateSubtitleStyle={setSubtitleStyle}
             selectedVoice={selectedVoice}
