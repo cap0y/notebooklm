@@ -52,6 +52,10 @@ export default function Footer() {
                   <Clock className="w-4 h-4 text-blue-400" />
                   <span className="text-gray-300">평일 09:00-18:00</span>
                 </div>
+                <div className="flex items-center gap-2 mt-1 pt-1 border-t border-gray-700/50">
+                  <span className="text-yellow-400 text-xs font-semibold">후원계좌</span>
+                  <span className="text-gray-300">농협 3024529970361</span>
+                </div>
               </div>
             </div>
 
@@ -133,10 +137,10 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-center items-center gap-4">
             <div className="text-center">
               <p className="text-gray-400 text-sm">
-                사업자등록증 257-88-03450 컴퓨터 프로그래밍 서비스업
+                사업자등록증 257-37-00989 컴퓨터 프로그래밍 서비스업
               </p>
               <p className="text-gray-400 text-sm mt-1">
-                통신판매업 신고: 2025-경남진주-0718 대표자:김영철 상호:주식회사 디컴소프트
+                통신판매업 신고: 2025-경남진주-0718 대표자:김영철 상호:디컴소프트
               </p>
             </div>
             <div className="text-center">
