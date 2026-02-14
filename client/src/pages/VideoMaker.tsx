@@ -81,9 +81,45 @@ const VideoMaker: React.FC = () => {
   )
 
   /**
+   * 비디오 파일에서 첫 프레임(썸네일)을 추출
+   */
+  const extractVideoThumbnail = (videoUrl: string): Promise<{ thumbnail: string; duration: number }> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      video.crossOrigin = 'anonymous'
+      video.preload = 'metadata'
+      video.muted = true
+
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(1, video.duration * 0.1) // 10% 지점 또는 1초
+      }
+
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Canvas context 생성 실패')); return }
+        ctx.drawImage(video, 0, 0)
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
+        resolve({ thumbnail, duration: video.duration })
+        URL.revokeObjectURL(video.src)
+      }
+
+      video.onerror = () => {
+        reject(new Error('비디오를 로드할 수 없습니다'))
+        URL.revokeObjectURL(video.src)
+      }
+
+      video.src = videoUrl
+    })
+  }
+
+  /**
    * 파일 업로드 핸들러
    * - PDF: 각 페이지를 고품질 이미지로 변환
    * - 이미지: 그대로 슬라이드에 추가
+   * - 비디오: 썸네일 추출 후 비디오 슬라이드로 추가
    */
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -95,6 +131,12 @@ const VideoMaker: React.FC = () => {
       const newSlides: Slide[] = []
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
+        setGenerationState({
+          isExporting: true,
+          progress: (i / files.length) * 100,
+          statusMessage: `파일 처리 중... (${i + 1}/${files.length})`,
+        })
+
         if (file.type === 'application/pdf') {
           // PDF → 이미지 변환
           const images = await convertPdfToImages(file)
@@ -108,6 +150,26 @@ const VideoMaker: React.FC = () => {
               isGeneratingAudio: false,
             })
           })
+        } else if (file.type.startsWith('video/')) {
+          // 비디오 파일 → 썸네일 추출 + blob URL 저장
+          const blobUrl = URL.createObjectURL(file)
+          try {
+            const { thumbnail, duration } = await extractVideoThumbnail(blobUrl)
+            newSlides.push({
+              id: Math.random().toString(36).substr(2, 9),
+              imageUrl: thumbnail,
+              videoUrl: blobUrl,
+              videoDuration: duration,
+              script: '',
+              subtitle: '',
+              audioData: null,
+              isGeneratingAudio: false,
+            })
+          } catch (err) {
+            console.error('비디오 처리 실패:', err)
+            URL.revokeObjectURL(blobUrl)
+            alert(`비디오 "${file.name}"을(를) 로드할 수 없습니다.`)
+          }
         } else {
           // 이미지 파일 직접 읽기
           const reader = new FileReader()
@@ -521,7 +583,7 @@ const VideoMaker: React.FC = () => {
                 type="file"
                 className="hidden"
                 multiple
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,video/*"
                 onChange={handleFileUpload}
               />
               <div className="w-12 h-12 bg-gray-800 group-hover:bg-indigo-600 rounded-full flex items-center justify-center transition-all shadow-lg shadow-black/40">
@@ -530,7 +592,7 @@ const VideoMaker: React.FC = () => {
                 </svg>
               </div>
               <span className="text-xs font-black text-gray-500 group-hover:text-indigo-400 uppercase tracking-widest text-center">
-                이미지 또는 PDF 추가
+                이미지 / PDF / 영상 추가
               </span>
             </label>
           </div>

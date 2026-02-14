@@ -9,10 +9,11 @@ interface PreviewAreaProps {
 }
 
 /**
- * 미리보기 영역 — 현재 선택된 슬라이드의 이미지, 자막, 오디오 재생을 미리보기
+ * 미리보기 영역 — 현재 선택된 슬라이드의 이미지/비디오, 자막, 오디오 재생을 미리보기
  *
  * - 화면 비율에 맞는 컨테이너 크기 자동 조절
  * - 오디오 재생 시 진행률에 맞춰 자막 청크를 동적으로 변경
+ * - 비디오 슬라이드: 원본 영상을 직접 재생
  * - ResizeObserver를 사용하여 실시간 컨테이너 크기 측정
  */
 export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRatio, subtitleStyle }) => {
@@ -24,8 +25,13 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
   const animationFrameRef = useRef<number | null>(null)
   const startTimeRef = useRef<number>(0)
 
+  // 비디오 관련 ref
+  const videoRef = useRef<HTMLVideoElement>(null)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+
+  const isVideoSlide = !!(activeSlide?.videoUrl)
 
   // 컨테이너 크기 측정
   useEffect(() => {
@@ -55,9 +61,10 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
     return () => observer.disconnect()
   }, [aspectRatio])
 
-  // 슬라이드 변경 시 오디오 정지
+  // 슬라이드 변경 시 오디오/비디오 정지
   useEffect(() => {
     stopAudio()
+    stopVideo()
     setDynamicSubtitle(activeSlide?.subtitle || activeSlide?.script || '')
   }, [activeSlide?.id])
 
@@ -67,6 +74,13 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
       setDynamicSubtitle(activeSlide.subtitle || activeSlide.script || '')
     }
   }, [activeSlide?.subtitle, activeSlide?.script, isPlaying])
+
+  const stopVideo = () => {
+    if (videoRef.current) {
+      videoRef.current.pause()
+      videoRef.current.currentTime = 0
+    }
+  }
 
   const stopAudio = () => {
     if (sourceRef.current) {
@@ -84,7 +98,77 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
     if (activeSlide) setDynamicSubtitle(activeSlide.subtitle || activeSlide.script || '')
   }
 
-  const playAudio = () => {
+  /**
+   * 비디오 슬라이드 재생/정지 토글
+   * - 오디오가 있으면 비디오는 음소거 + 오디오버퍼 재생
+   * - 오디오가 없으면 비디오 자체 소리 재생
+   */
+  const toggleVideoPlay = () => {
+    if (!videoRef.current || !activeSlide?.videoUrl) return
+
+    if (isPlaying) {
+      // 정지
+      videoRef.current.pause()
+      stopAudio()
+      setIsPlaying(false)
+      return
+    }
+
+    // 재생 시작
+    const video = videoRef.current
+    video.currentTime = 0
+
+    if (activeSlide.audioData) {
+      // TTS 오디오가 있는 경우: 비디오 음소거 + 오디오버퍼 재생
+      video.muted = true
+      playAudioBuffer()
+    } else {
+      // 오디오 없음: 비디오 자체 소리 재생
+      video.muted = false
+    }
+
+    video.play()
+    setIsPlaying(true)
+
+    // 비디오 종료 시 정지
+    video.onended = () => {
+      setIsPlaying(false)
+      stopAudio()
+    }
+
+    // 자막 애니메이션 (비디오 duration 기준)
+    if (activeSlide.script) {
+      const script = activeSlide.script
+      const duration = activeSlide.audioData
+        ? activeSlide.audioData.duration
+        : (activeSlide.videoDuration || video.duration)
+      const isPortrait = aspectRatio === AspectRatio.Portrait9_16
+      const maxCharsPerLine = isPortrait ? 20 : 45
+      const chunks = splitTextIntoChunks(script, maxCharsPerLine)
+      const totalChunks = chunks.length
+
+      const updateLoop = () => {
+        const elapsed = video.currentTime
+        const progress = Math.min(Math.max(elapsed / duration, 0), 1)
+
+        if (totalChunks > 0) {
+          const chunkIndex = getChunkIndexByCharacterCount(chunks, progress)
+          setDynamicSubtitle(chunks[chunkIndex])
+        }
+
+        if (!video.paused && !video.ended) {
+          animationFrameRef.current = requestAnimationFrame(updateLoop)
+        }
+      }
+
+      animationFrameRef.current = requestAnimationFrame(updateLoop)
+    }
+  }
+
+  /**
+   * 이미지 슬라이드용 오디오 재생
+   */
+  const playAudioBuffer = () => {
     if (!activeSlide?.audioData) return
 
     if (!audioContextRef.current) {
@@ -95,14 +179,21 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
       audioContextRef.current.resume()
     }
 
-    stopAudio()
+    // 이전 소스 정리
+    if (sourceRef.current) {
+      try { sourceRef.current.stop() } catch (e) {}
+      sourceRef.current.disconnect()
+      sourceRef.current = null
+    }
 
     const source = audioContextRef.current.createBufferSource()
     source.buffer = activeSlide.audioData
     source.connect(audioContextRef.current.destination)
 
     source.onended = () => {
-      setIsPlaying(false)
+      if (!isVideoSlide) {
+        setIsPlaying(false)
+      }
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
       setDynamicSubtitle(activeSlide.subtitle || activeSlide.script || '')
     }
@@ -110,6 +201,16 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
     source.start()
     startTimeRef.current = audioContextRef.current.currentTime
     sourceRef.current = source
+  }
+
+  /**
+   * 이미지 슬라이드용 오디오 재생 (독립)
+   */
+  const playAudio = () => {
+    if (!activeSlide?.audioData) return
+
+    stopAudio()
+    playAudioBuffer()
     setIsPlaying(true)
 
     // 자막 애니메이션 루프
@@ -166,6 +267,19 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
   const scaledPaddingY = scaledFontSize * 0.25
   const scaledPaddingX = scaledFontSize * 0.5
 
+  // 비디오/이미지 슬라이드에 따른 재생 버튼 핸들러
+  const handlePlayClick = isVideoSlide
+    ? toggleVideoPlay
+    : (isPlaying ? stopAudio : playAudio)
+
+  // 재생 가능 여부 (비디오 슬라이드 또는 오디오가 있는 이미지 슬라이드)
+  const canPlay = isVideoSlide || !!activeSlide.audioData
+
+  // 하단 상태 텍스트
+  const statusText = isVideoSlide
+    ? `${activeSlide.videoDuration?.toFixed(1) || '?'}초 영상`
+    : (activeSlide.audioData ? `${activeSlide.audioData.duration.toFixed(1)}초 오디오` : '오디오 없음')
+
   return (
     <div className="flex-1 bg-gray-950 p-4 sm:p-8 flex flex-col items-center justify-center relative overflow-hidden">
       {/* 화면 비율 컨테이너 */}
@@ -180,8 +294,20 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
           maxHeight: '100%',
         }}
       >
-        {/* 이미지 레이어 */}
-        <img src={activeSlide.imageUrl} alt="Preview" className="w-full h-full object-contain" />
+        {/* 비디오 슬라이드일 때 비디오 엘리먼트 */}
+        {isVideoSlide ? (
+          <video
+            ref={videoRef}
+            src={activeSlide.videoUrl}
+            poster={activeSlide.imageUrl}
+            className="w-full h-full object-contain"
+            playsInline
+            preload="auto"
+          />
+        ) : (
+          /* 이미지 레이어 */
+          <img src={activeSlide.imageUrl} alt="Preview" className="w-full h-full object-contain" />
+        )}
 
         {/* 자막 레이어 */}
         {dynamicSubtitle && (
@@ -211,12 +337,12 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
           </div>
         )}
 
-        {/* 재생 버튼 (오디오가 있을 때) */}
-        {activeSlide.audioData && (
+        {/* 재생 버튼 (비디오 슬라이드이거나 오디오가 있을 때) */}
+        {canPlay && (
           <div className="absolute top-4 right-4 z-20 pointer-events-auto">
             <button
-              onClick={isPlaying ? stopAudio : playAudio}
-              className={`p-3 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-500 text-white' : 'bg-indigo-600 text-white'}`}
+              onClick={handlePlayClick}
+              className={`p-3 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 ${isPlaying ? 'bg-red-500 text-white' : (isVideoSlide ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white')}`}
             >
               {isPlaying ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
@@ -230,12 +356,21 @@ export const PreviewArea: React.FC<PreviewAreaProps> = ({ activeSlide, aspectRat
             </button>
           </div>
         )}
+
+        {/* 비디오 슬라이드 뱃지 */}
+        {isVideoSlide && (
+          <div className="absolute top-4 left-4 z-20 bg-purple-600/90 backdrop-blur-sm text-white px-3 py-1 rounded-full flex items-center gap-1.5 text-xs font-bold shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M3.25 4A2.25 2.25 0 001 6.25v7.5A2.25 2.25 0 003.25 16h7.5A2.25 2.25 0 0013 13.75v-7.5A2.25 2.25 0 0010.75 4h-7.5zM19 4.75a.75.75 0 00-1.28-.53l-3 3a.75.75 0 00-.22.53v4.5c0 .199.079.39.22.53l3 3a.75.75 0 001.28-.53V4.75z" />
+            </svg>
+            영상 클립
+          </div>
+        )}
       </div>
 
       <div className="mt-4 text-gray-500 text-sm font-mono">
-        미리보기 • {aspectRatio} • {activeSlide.audioData ? `${activeSlide.audioData.duration.toFixed(1)}초 오디오` : '오디오 없음'}
+        미리보기 • {aspectRatio} • {statusText}
       </div>
     </div>
   )
 }
-

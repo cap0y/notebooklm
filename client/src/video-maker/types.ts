@@ -1,6 +1,10 @@
 export interface Slide {
   id: string
   imageUrl: string
+  /** 비디오 슬라이드일 경우 원본 비디오 URL (blob: 또는 data:) */
+  videoUrl?: string
+  /** 비디오 원본 길이(초) */
+  videoDuration?: number
   script: string
   subtitle: string
   audioData: AudioBuffer | null
