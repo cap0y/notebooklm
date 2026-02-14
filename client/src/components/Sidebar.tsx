@@ -10,6 +10,7 @@ import {
   Cookie,
   MessageSquare,
   Presentation,
+  Video,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAppStore } from '../store/useAppStore'
@@ -35,6 +36,7 @@ const Sidebar = () => {
     { icon: Home, label: '홈', path: '/' },
     { icon: FileText, label: 'PDF 변환', path: '/pdf-converter' },
     { icon: Image, label: '편집', path: '/image-editor' },
+    { icon: Video, label: '동영상', path: '/video-maker' },
     { icon: MessageSquare, label: '채팅', path: '/chat' },
   ]
 

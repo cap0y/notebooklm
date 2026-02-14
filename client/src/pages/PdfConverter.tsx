@@ -432,11 +432,81 @@ const PdfConverter = () => {
   React.useEffect(() => {
     const stateFile = location.state?.file
     if (stateFile instanceof File) {
-      convertPdf(stateFile)
+      processFile([stateFile])
     }
   }, [location.state])
 
   const getBaseName = (name: string) => name.replace(/\.pdf$/i, '')
+
+  /**
+   * 이미지 파일을 ConvertedPage로 변환
+   */
+  const convertImages = async (imageFiles: File[]) => {
+    setFile(imageFiles[0])
+    setFileName(imageFiles[0].name.replace(/\.[^.]+$/, ''))
+    setError(null)
+    setIsConverting(true)
+    setPages([])
+    setProgress(0)
+    setTotalPages(imageFiles.length)
+
+    try {
+      const convertedPages: ConvertedPage[] = []
+
+      for (let i = 0; i < imageFiles.length; i++) {
+        const imgFile = imageFiles[i]
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (e) => resolve(e.target?.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(imgFile)
+        })
+
+        // 이미지 크기 측정
+        const img = await loadImage(dataUrl)
+
+        convertedPages.push({
+          pageNumber: i + 1,
+          dataUrl,
+          width: img.width,
+          height: img.height,
+          textItems: undefined,
+        })
+
+        setProgress(i + 1)
+        setPages([...convertedPages])
+      }
+    } catch (err) {
+      console.error('이미지 변환 오류:', err)
+      setError('이미지 처리 중 오류가 발생했습니다.')
+    } finally {
+      setIsConverting(false)
+    }
+  }
+
+  /**
+   * 파일 처리 — PDF 또는 이미지 파일을 자동 판별하여 처리
+   */
+  const processFile = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files)
+    if (fileArray.length === 0) return
+
+    // 첫 파일이 PDF인 경우 → PDF 변환
+    const firstFile = fileArray[0]
+    if (firstFile.type === 'application/pdf') {
+      convertPdf(firstFile)
+      return
+    }
+
+    // 이미지 파일 필터링
+    const imageFiles = fileArray.filter((f) => f.type.startsWith('image/'))
+    if (imageFiles.length > 0) {
+      convertImages(imageFiles)
+      return
+    }
+
+    setError('지원하지 않는 파일 형식입니다. PDF 또는 이미지 파일을 업로드해 주세요.')
+  }
 
   /**
    * PDF 파일을 이미지로 변환하면서 동시에 텍스트 구조 추출
@@ -588,8 +658,8 @@ const PdfConverter = () => {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
-      const droppedFile = e.dataTransfer.files[0]
-      if (droppedFile) convertPdf(droppedFile)
+      const files = e.dataTransfer.files
+      if (files.length > 0) processFile(files)
     },
     [watermarkRemoval]
   )
@@ -600,8 +670,8 @@ const PdfConverter = () => {
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFile = e.target.files?.[0]
-      if (selectedFile) convertPdf(selectedFile)
+      const files = e.target.files
+      if (files && files.length > 0) processFile(files)
     },
     [watermarkRemoval]
   )
@@ -952,9 +1022,9 @@ const PdfConverter = () => {
       <>
       {/* 페이지 헤더 */}
       <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">PDF → 이미지 변환</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">PDF / 이미지 변환</h1>
         <p className="text-gray-400 text-xs sm:text-sm">
-          PDF 슬라이드를 이미지로 변환하고 NotebookLM 워터마크를 자동 제거합니다.
+          PDF 슬라이드를 이미지로 변환하고 워터마크를 자동 제거합니다. 이미지 파일도 직접 업로드할 수 있습니다.
         </p>
       </div>
 
@@ -996,15 +1066,16 @@ const PdfConverter = () => {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf"
+            accept=".pdf,image/*"
+            multiple
             className="hidden"
             onChange={handleFileInput}
           />
           <Upload className="w-10 h-10 sm:w-12 sm:h-12 text-gray-500 mx-auto mb-3 sm:mb-4" />
           <p className="text-gray-300 text-base sm:text-lg mb-2">
-            PDF 파일을 여기에 드래그하세요
+            PDF 또는 이미지 파일을 여기에 드래그하세요
           </p>
-          <p className="text-gray-500 text-xs sm:text-sm">또는 클릭하여 파일 선택 (최대 50MB)</p>
+          <p className="text-gray-500 text-xs sm:text-sm">또는 클릭하여 파일 선택 · PDF, JPG, PNG 등 지원 (최대 50MB)</p>
         </div>
       )}
 

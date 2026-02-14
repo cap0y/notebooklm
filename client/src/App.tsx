@@ -14,6 +14,9 @@ const CookiePolicy = lazy(() => import('./pages/CookiePolicy'))
 // 채팅방 페이지
 const ChatRoom = lazy(() => import('./pages/ChatRoom'))
 
+// 동영상 만들기 페이지
+const VideoMaker = lazy(() => import('./pages/VideoMaker'))
+
 const VALID_PATHS = [
   '/',
   '/pdf-converter',
@@ -23,6 +26,7 @@ const VALID_PATHS = [
   '/terms-of-service',
   '/cookie-policy',
   '/chat',
+  '/video-maker',
 ]
 
 function isValidPath(path: string) {
@@ -96,6 +100,21 @@ function PageManager() {
             }
           >
             <ChatRoom />
+          </Suspense>
+        </div>
+      )}
+
+      {/* 동영상 만들기 페이지 — lazy 로드 */}
+      {path === '/video-maker' && (
+        <div className="flex-1 flex-col min-h-0 overflow-hidden" style={{ display: 'flex' }}>
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-gray-400 text-sm">로딩 중...</div>
+              </div>
+            }
+          >
+            <VideoMaker />
           </Suspense>
         </div>
       )}

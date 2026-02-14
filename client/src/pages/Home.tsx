@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   FileText,
   ScanLine,
@@ -16,6 +16,10 @@ import {
   Send,
   Settings,
   User,
+  Video,
+  Mic,
+  Subtitles,
+  Film,
 } from 'lucide-react'
 import Footer from '../components/Footer'
 
@@ -42,6 +46,9 @@ function nickColor(name: string) {
 
 const Home = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isVisible = location.pathname === '/'
+
   const [recentMessages, setRecentMessages] = useState<ChatMsg[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(true)
 
@@ -53,10 +60,12 @@ const Home = () => {
   const [showNickModal, setShowNickModal] = useState(false)
   const [tempNick, setTempNick] = useState('')
   const [tempPw, setTempPw] = useState('')
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
-  // 최신 채팅 메시지 가져오기 + 3초 폴링으로 실시간 갱신
+  // 최신 채팅 메시지 가져오기 — 홈 페이지가 보일 때만 폴링
   useEffect(() => {
+    if (!isVisible) return
+
     let cancelled = false
 
     const fetchRecentMessages = async () => {
@@ -80,12 +89,14 @@ const Home = () => {
       cancelled = true
       clearInterval(intervalId)
     }
-  }, [])
+  }, [isVisible])
 
-  // 새 메시지가 오면 스크롤 아래로
+  // 새 메시지가 오면 채팅 컨테이너 내부만 스크롤 (페이지 전체 이동 방지)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [recentMessages])
+    if (isVisible && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [recentMessages, isVisible])
 
   // ── 메시지 전송 ──
   const sendMessage = async () => {
@@ -147,12 +158,12 @@ const Home = () => {
     setShowNickModal(false)
   }
 
-  // PDF 파일 드래그 앤 드롭
+  // PDF/이미지 파일 드래그 앤 드롭
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
       const file = e.dataTransfer.files[0]
-      if (file && file.type === 'application/pdf') {
+      if (file && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
         navigate('/pdf-converter', { state: { file } })
       }
     },
@@ -167,7 +178,7 @@ const Home = () => {
   const handleFileSelect = useCallback(() => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.pdf'
+    input.accept = '.pdf,image/*'
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
@@ -218,7 +229,7 @@ const Home = () => {
               </div>
               <div className="text-center">
                 <p className="text-gray-300 font-medium text-sm sm:text-base mb-1">
-                  PDF 파일을 드래그하거나 클릭하여 시작
+                  PDF 또는 이미지 파일을 드래그하거나 클릭하여 시작
                 </p>
                 <p className="text-gray-500 text-xs sm:text-sm">
                   워터마크 자동 제거 → 이미지 변환 → 한글 편집 → PDF 다운로드
@@ -372,6 +383,35 @@ const Home = () => {
                 </div>
               </div>
             </button>
+
+            {/* 동영상 스튜디오 */}
+            <button
+              onClick={() => navigate('/video-maker')}
+              className="w-full bg-gray-900/60 border border-gray-800/60 rounded-xl p-4 sm:p-6 text-left hover:border-gray-700 active:bg-gray-800/40 transition-all group"
+            >
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Video className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">동영상 스튜디오</h3>
+                  <ul className="space-y-1">
+                    <li className="text-gray-500 text-xs flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
+                      PDF/이미지를 슬라이드로 변환하여 동영상 제작
+                    </li>
+                    <li className="text-gray-500 text-xs flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
+                      AI 나레이션 대본 자동 생성 + TTS 음성 합성
+                    </li>
+                    <li className="text-gray-500 text-xs flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
+                      자막 스타일 커스터마이징 + WebM 비디오 내보내기
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </button>
           </div>
 
           {/* 우측: 실시간 채팅 (#일반 채널) — 입력 가능 */}
@@ -415,7 +455,7 @@ const Home = () => {
               </div>
 
               {/* 메시지 목록 (스크롤 가능) */}
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
                 {isLoadingMessages ? (
                   <div className="space-y-3 py-4">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -462,7 +502,7 @@ const Home = () => {
                     </div>
                   ))
                 )}
-                <div ref={messagesEndRef} />
+                {/* 스크롤 앵커 불필요 — chatContainerRef.scrollTop 사용 */}
               </div>
 
               {/* 메시지 입력 영역 */}
