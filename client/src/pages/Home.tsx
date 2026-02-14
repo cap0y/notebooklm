@@ -17,8 +17,9 @@ import Footer from '../components/Footer'
 
 /**
  * 메인 홈 페이지 (반응형)
- * AI 한글 에디터의 주요 기능을 안내하고 빠른 접근을 제공
+ * AI 한글 에디터 & 동영상 스튜디오의 주요 기능을 안내하고 빠른 접근을 제공
  *
+ * 주요 기능: PDF 변환/워터마크 제거, AI OCR 한글 복원, 이미지 정밀 편집, AI 동영상 제작
  * 모바일: 작은 타이틀, 세로 배치, 터치 친화적 버튼
  * 데스크탑: 넓은 그리드, 작업 흐름 가로 표시
  *
@@ -58,11 +59,11 @@ const Home = () => {
   }, [navigate])
 
   const workflowSteps = [
-    { icon: FileText, text: 'PDF 업로드' },
+    { icon: FileText, text: 'PDF/이미지 업로드' },
     { icon: Eraser, text: '워터마크 제거' },
-    { icon: ScanLine, text: '한글 인식' },
-    { icon: Type, text: '텍스트 교체' },
-    { icon: Download, text: 'PDF 다운로드' },
+    { icon: ScanLine, text: '한글 OCR 인식' },
+    { icon: Type, text: '텍스트 편집' },
+    { icon: Download, text: '다운로드' },
   ]
 
   return (
@@ -73,14 +74,14 @@ const Home = () => {
         <div className="text-center mb-8 sm:mb-14">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-medium mb-4 sm:mb-5">
             <Type className="w-3.5 h-3.5" />
-            PDF 한글 텍스트 복원 도구
+            AI 기반 문서 편집 & 동영상 제작 플랫폼
           </div>
           <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-tight mb-3 sm:mb-4">
-          NotebookLM 워터마크 제거 및 AI 한글 에디터
+            AI 한글 에디터 & 동영상 스튜디오
           </h1>
           <p className="text-gray-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-            NotebookLM 등에서 생성된 PDF 슬라이드의 깨진 한글을
-            자동으로 인식하고 깨끗한 텍스트로 교체합니다
+            PDF 워터마크 제거, 깨진 한글 OCR 복원, 이미지 정밀 편집부터
+            AI 나레이션 동영상 제작까지 한 곳에서 처리하세요
           </p>
         </div>
 
@@ -98,10 +99,10 @@ const Home = () => {
               </div>
               <div className="text-center">
                 <p className="text-gray-300 font-medium text-sm sm:text-base mb-1">
-                  PDF 또는 이미지 파일을 드래그하거나 클릭하여 시작
+                  PDF 또는 이미지 파일을 드래그하거나 클릭하여 편집 시작
                 </p>
                 <p className="text-gray-500 text-xs sm:text-sm">
-                  워터마크 자동 제거 → 이미지 변환 → 한글 편집 → PDF 다운로드
+                  PDF/이미지 업로드 → 워터마크 제거 → 한글 OCR 복원 → 편집 → 다운로드
                 </p>
               </div>
             </div>
@@ -149,15 +150,15 @@ const Home = () => {
                 <ul className="space-y-1">
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    PDF 슬라이드를 고해상도 이미지로 변환
+                    PDF/이미지를 고해상도 슬라이드로 변환
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    NotebookLM 워터마크 자동 제거
+                    워터마크 자동 감지 및 제거
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    이미지 또는 PDF로 일괄 다운로드
+                    이미지·PDF·PPT 다양한 형식으로 다운로드
                   </li>
                 </ul>
               </div>
@@ -174,19 +175,19 @@ const Home = () => {
                 <Type className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">한글 텍스트 교체</h3>
+                <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">AI 한글 텍스트 복원</h3>
                 <ul className="space-y-1">
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    깨진 한글 영역을 선택하여 OCR 인식
+                    깨진 한글 영역 선택 → AI OCR로 자동 인식
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    원본 폰트 크기·두께 자동 측정 후 교체
+                    원본 폰트 크기·두께 측정 후 자연스럽게 교체
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    편집 결과를 PDF에 바로 반영
+                    편집 결과를 이미지·PDF에 바로 반영
                   </li>
                 </ul>
               </div>
@@ -261,19 +262,19 @@ const Home = () => {
                 <Video className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">동영상 스튜디오</h3>
+                <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">AI 동영상 스튜디오</h3>
                 <ul className="space-y-1">
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    PDF/이미지/영상을 슬라이드로 변환하여 동영상 제작
+                    PDF·이미지·MP4 영상을 슬라이드로 구성하여 동영상 제작
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    AI 나레이션 대본 자동 생성 + TTS 음성 합성
+                    Gemini AI 기반 나레이션 대본 생성 + TTS 음성 합성
                   </li>
                   <li className="text-gray-500 text-xs flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    자막 스타일 커스터마이징 + WebM 비디오 내보내기
+                    자막 스타일 편집 + WebM/PPTX 내보내기 지원
                   </li>
                 </ul>
               </div>
