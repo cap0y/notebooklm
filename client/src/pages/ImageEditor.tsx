@@ -60,6 +60,7 @@ const ImageEditor = () => {
   type HandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null
   const [resizeHandle, setResizeHandle] = useState<HandleType>(null)
   const [resizeOrigin, setResizeOrigin] = useState<SelectionRect | null>(null)
+  const [resizeImageCanvas, setResizeImageCanvas] = useState<HTMLCanvasElement | null>(null)
 
   // ─── 이미지 조각 이동 상태 ─── //
   const [isMoving, setIsMoving] = useState(false)
@@ -83,6 +84,7 @@ const ImageEditor = () => {
   const [textMeasure, setTextMeasure] = useState<TextMeasure | null>(null)
   const [fontSizeOverride, setFontSizeOverride] = useState<number | null>(null)
   const [fontBold, setFontBold] = useState(false)
+  const [textColorOverride, setTextColorOverride] = useState<string | null>(null) // null = 자동 감지
 
   // ─── 편집 히스토리 ─── //
   const [history, setHistory] = useState<string[]>([])
@@ -196,6 +198,16 @@ const ImageEditor = () => {
         ctx.setLineDash([6, 4])
         ctx.strokeRect(selection.x, selection.y, selection.width, selection.height)
         ctx.setLineDash([])
+      } else if (resizeHandle && resizeImageCanvas) {
+        // 리사이즈 중: 이미지 조각을 새 크기로 늘려서 미리보기
+        ctx.globalAlpha = 0.85
+        ctx.drawImage(resizeImageCanvas, selection.x, selection.y, selection.width, selection.height)
+        ctx.globalAlpha = 1.0
+        ctx.strokeStyle = '#f59e0b'
+        ctx.lineWidth = 2
+        ctx.setLineDash([6, 4])
+        ctx.strokeRect(selection.x, selection.y, selection.width, selection.height)
+        ctx.setLineDash([])
       } else {
         const hs = 8
         const mx = selection.x + selection.width / 2
@@ -215,7 +227,7 @@ const ImageEditor = () => {
         })
       }
     }
-  }, [editCanvas, scale, selection, location.pathname, editVersion, isMoving, moveImageCanvas])
+  }, [editCanvas, scale, selection, location.pathname, editVersion, isMoving, moveImageCanvas, resizeHandle, resizeImageCanvas])
 
   // ─── 마우스/터치 이벤트 ─── //
 
@@ -300,6 +312,50 @@ const ImageEditor = () => {
 
       const handle = detectHandle(coords)
       if (handle && selection) {
+        // 리사이즈 시작 → 이미지 조각 캡처 + 원본 영역 배경 복원
+        const ctx = editCanvas.getContext('2d')!
+        const sx2 = editCanvas.width / canvasSize.width
+        const sy2 = editCanvas.height / canvasSize.height
+        const rSrcX = Math.round(selection.x * sx2)
+        const rSrcY = Math.round(selection.y * sy2)
+        const rSrcW = Math.round(selection.width * sx2)
+        const rSrcH = Math.round(selection.height * sy2)
+
+        // 스냅샷 저장 (undo 용)
+        const snapshot = editCanvas.toDataURL('image/png')
+        setHistory((prev) => {
+          const next = [...prev, snapshot]
+          return next.length > 10 ? next.slice(-10) : next
+        })
+
+        // 이미지 조각 캡처
+        const tmpCanvas = document.createElement('canvas')
+        tmpCanvas.width = rSrcW
+        tmpCanvas.height = rSrcH
+        tmpCanvas.getContext('2d')!.drawImage(
+          editCanvas, rSrcX, rSrcY, rSrcW, rSrcH, 0, 0, rSrcW, rSrcH
+        )
+        setResizeImageCanvas(tmpCanvas)
+
+        // 원본 영역을 strip-copy로 배경 복원
+        const topStripY = Math.max(0, rSrcY - 2)
+        const bottomStripY = Math.min(editCanvas.height - 1, rSrcY + rSrcH + 1)
+        const topStrip = ctx.getImageData(rSrcX, topStripY, rSrcW, 1)
+        const bottomStrip = ctx.getImageData(rSrcX, bottomStripY, rSrcW, 1)
+        for (let y = rSrcY; y < Math.min(editCanvas.height, rSrcY + rSrcH); y++) {
+          const t = rSrcH > 1 ? (y - rSrcY) / (rSrcH - 1) : 0
+          const blended = new ImageData(rSrcW, 1)
+          for (let px = 0; px < rSrcW; px++) {
+            const i = px * 4
+            blended.data[i]     = Math.round(topStrip.data[i]     * (1 - t) + bottomStrip.data[i]     * t)
+            blended.data[i + 1] = Math.round(topStrip.data[i + 1] * (1 - t) + bottomStrip.data[i + 1] * t)
+            blended.data[i + 2] = Math.round(topStrip.data[i + 2] * (1 - t) + bottomStrip.data[i + 2] * t)
+            blended.data[i + 3] = 255
+          }
+          ctx.putImageData(blended, rSrcX, y)
+        }
+        setEditVersion((v) => v + 1)
+
         setResizeHandle(handle)
         setResizeOrigin({ ...selection })
         setSelectionStart(coords)
@@ -416,8 +472,21 @@ const ImageEditor = () => {
     }
 
     if (resizeHandle) {
+      // 리사이즈 완료 → 이미지 조각을 새 크기로 editCanvas에 그리기
+      if (resizeImageCanvas && selection && editCanvas) {
+        const ctx = editCanvas.getContext('2d')!
+        const sx = editCanvas.width / canvasSize.width
+        const sy = editCanvas.height / canvasSize.height
+        const dstX = Math.round(selection.x * sx)
+        const dstY = Math.round(selection.y * sy)
+        const dstW = Math.round(selection.width * sx)
+        const dstH = Math.round(selection.height * sy)
+        ctx.drawImage(resizeImageCanvas, 0, 0, resizeImageCanvas.width, resizeImageCanvas.height, dstX, dstY, dstW, dstH)
+        setEditVersion((v) => v + 1)
+      }
       setResizeHandle(null)
       setResizeOrigin(null)
+      setResizeImageCanvas(null)
       return
     }
     setIsSelecting(false)
@@ -663,14 +732,19 @@ const ImageEditor = () => {
       ctx.putImageData(blended, srcX, y)
     }
 
-    // 텍스트 색상: 복원된 배경 중앙 지점의 밝기 기준으로 결정
-    const centerX = Math.min(Math.floor(srcW / 2), srcW - 1) * 4
-    const midT = 0.5
-    const bgR = Math.round(topStrip.data[centerX] * (1 - midT) + bottomStrip.data[centerX] * midT)
-    const bgG = Math.round(topStrip.data[centerX + 1] * (1 - midT) + bottomStrip.data[centerX + 1] * midT)
-    const bgB = Math.round(topStrip.data[centerX + 2] * (1 - midT) + bottomStrip.data[centerX + 2] * midT)
-    const brightness = (bgR * 299 + bgG * 587 + bgB * 114) / 1000
-    const textColor = brightness > 128 ? '#1a1a1a' : '#f0f0f0'
+    // 텍스트 색상: 사용자 지정 색상이 있으면 사용, 없으면 배경 밝기 기준 자동 결정
+    let textColor: string
+    if (textColorOverride) {
+      textColor = textColorOverride
+    } else {
+      const centerX = Math.min(Math.floor(srcW / 2), srcW - 1) * 4
+      const midT = 0.5
+      const bgR = Math.round(topStrip.data[centerX] * (1 - midT) + bottomStrip.data[centerX] * midT)
+      const bgG = Math.round(topStrip.data[centerX + 1] * (1 - midT) + bottomStrip.data[centerX + 1] * midT)
+      const bgB = Math.round(topStrip.data[centerX + 2] * (1 - midT) + bottomStrip.data[centerX + 2] * midT)
+      const brightness = (bgR * 299 + bgG * 587 + bgB * 114) / 1000
+      textColor = brightness > 128 ? '#1a1a1a' : '#f0f0f0'
+    }
 
     const fontFamily = '"Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
     const rawLines = editedText.split('\n')
@@ -937,18 +1011,47 @@ const ImageEditor = () => {
                   </div>
                 </div>
 
-                {/* 볼드 토글 */}
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={fontBold}
-                    onChange={(e) => setFontBold(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-400">
-                    볼드 {textMeasure.isBold && <span className="text-blue-400 ml-1">← 자동 감지</span>}
-                  </span>
-                </label>
+                {/* 볼드 토글 + 글자 색상 */}
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={fontBold}
+                      onChange={(e) => setFontBold(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-gray-400">
+                      볼드 {textMeasure.isBold && <span className="text-blue-400 ml-1">← 자동 감지</span>}
+                    </span>
+                  </label>
+                </div>
+
+                {/* 글자 색상 선택 */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 flex items-center justify-between">
+                    <span>글자 색상</span>
+                    <button
+                      onClick={() => setTextColorOverride(null)}
+                      className="text-blue-400 hover:text-blue-300 text-[10px]"
+                    >
+                      자동 감지
+                    </button>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={textColorOverride || '#1a1a1a'}
+                      onChange={(e) => setTextColorOverride(e.target.value)}
+                      className="w-8 h-8 rounded border border-gray-600 bg-transparent cursor-pointer"
+                    />
+                    <span className="text-xs text-gray-400 font-mono uppercase">
+                      {textColorOverride || '자동'}
+                    </span>
+                    {!textColorOverride && (
+                      <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">배경 밝기 기반</span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
