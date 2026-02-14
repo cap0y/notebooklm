@@ -512,12 +512,29 @@ const VideoMaker: React.FC = () => {
           <div className="p-4 sm:p-5 border-b border-gray-800 bg-gray-900/50">
             <div className="flex justify-between items-center">
               <h2 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">슬라이드 관리</h2>
-              <button
-                onClick={handleSelectAll}
-                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                {selectedSlideIds.length === slides.length && slides.length > 0 ? '전체 해제' : '전체 선택'}
-              </button>
+              <div className="flex items-center gap-2">
+                {slides.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (!confirm(`슬라이드 ${slides.length}개를 모두 삭제하시겠습니까?`)) return
+                      // 비디오 blob URL 해제
+                      slides.forEach((s) => { if (s.videoUrl) URL.revokeObjectURL(s.videoUrl) })
+                      setSlides([])
+                      setActiveSlideId('')
+                      setSelectedSlideIds([])
+                    }}
+                    className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    전체 삭제
+                  </button>
+                )}
+                <button
+                  onClick={handleSelectAll}
+                  className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {selectedSlideIds.length === slides.length && slides.length > 0 ? '전체 해제' : '전체 선택'}
+                </button>
+              </div>
             </div>
           </div>
 
