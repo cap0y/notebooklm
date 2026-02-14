@@ -626,6 +626,7 @@ const ImageEditor = () => {
 
     const ctx = editCanvas.getContext('2d')!
 
+    // 실행 취소를 위한 스냅샷 저장
     const snapshot = editCanvas.toDataURL('image/png')
     setHistory((prev) => {
       const next = [...prev, snapshot]
@@ -639,11 +640,36 @@ const ImageEditor = () => {
     const srcW = Math.round(selection.width * sx)
     const srcH = Math.round(selection.height * sy)
 
-    const bg = sampleBackgroundColor(ctx, srcX, srcY, srcW, srcH)
-    ctx.fillStyle = `rgb(${bg.r}, ${bg.g}, ${bg.b})`
-    ctx.fillRect(srcX, srcY, srcW, srcH)
+    // ── 배경 복원 (strip-copy 방식) ──
+    // 기존: 단색 평균색으로 fillRect → 그라데이션/패턴 배경이 망가짐
+    // 개선: 선택 영역 위/아래 1px strip을 복사하여 세로로 타일링
+    //       → 원본 배경 패턴/그라데이션이 자연스럽게 유지됨
+    const topStripY = Math.max(0, srcY - 2)
+    const bottomStripY = Math.min(editCanvas.height - 1, srcY + srcH + 1)
+    const topStrip = ctx.getImageData(srcX, topStripY, srcW, 1)
+    const bottomStrip = ctx.getImageData(srcX, bottomStripY, srcW, 1)
 
-    const brightness = (bg.r * 299 + bg.g * 587 + bg.b * 114) / 1000
+    for (let y = srcY; y < Math.min(editCanvas.height, srcY + srcH); y++) {
+      // 위/아래 strip을 y 위치에 따라 블렌딩 (세로 그라데이션 대응)
+      const t = srcH > 1 ? (y - srcY) / (srcH - 1) : 0 // 0(상단) ~ 1(하단) 비율
+      const blended = new ImageData(srcW, 1)
+      for (let px = 0; px < srcW; px++) {
+        const i = px * 4
+        blended.data[i]     = Math.round(topStrip.data[i]     * (1 - t) + bottomStrip.data[i]     * t)
+        blended.data[i + 1] = Math.round(topStrip.data[i + 1] * (1 - t) + bottomStrip.data[i + 1] * t)
+        blended.data[i + 2] = Math.round(topStrip.data[i + 2] * (1 - t) + bottomStrip.data[i + 2] * t)
+        blended.data[i + 3] = 255
+      }
+      ctx.putImageData(blended, srcX, y)
+    }
+
+    // 텍스트 색상: 복원된 배경 중앙 지점의 밝기 기준으로 결정
+    const centerX = Math.min(Math.floor(srcW / 2), srcW - 1) * 4
+    const midT = 0.5
+    const bgR = Math.round(topStrip.data[centerX] * (1 - midT) + bottomStrip.data[centerX] * midT)
+    const bgG = Math.round(topStrip.data[centerX + 1] * (1 - midT) + bottomStrip.data[centerX + 1] * midT)
+    const bgB = Math.round(topStrip.data[centerX + 2] * (1 - midT) + bottomStrip.data[centerX + 2] * midT)
+    const brightness = (bgR * 299 + bgG * 587 + bgB * 114) / 1000
     const textColor = brightness > 128 ? '#1a1a1a' : '#f0f0f0'
 
     const fontFamily = '"Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
@@ -674,14 +700,32 @@ const ImageEditor = () => {
 
     const lines = rawLines
 
+    // 텍스트가 선택 영역보다 넓으면 오른쪽도 strip-copy로 배경 확장
     let maxLW = 0
     for (const line of lines) {
       maxLW = Math.max(maxLW, ctx.measureText(line).width)
     }
     if (maxLW > srcW) {
-      const extraW = maxLW - srcW + 4
-      ctx.fillStyle = `rgb(${bg.r}, ${bg.g}, ${bg.b})`
-      ctx.fillRect(srcX + srcW, srcY, extraW, srcH)
+      const extraW = Math.ceil(maxLW - srcW + 4)
+      const extraX = srcX + srcW
+      // 초과 영역도 strip-copy로 배경 복원
+      const extraTopStrip = ctx.getImageData(Math.min(extraX, editCanvas.width - 1), topStripY, Math.min(extraW, editCanvas.width - extraX), 1)
+      const extraBottomStrip = ctx.getImageData(Math.min(extraX, editCanvas.width - 1), bottomStripY, Math.min(extraW, editCanvas.width - extraX), 1)
+      const actualExtraW = Math.min(extraW, editCanvas.width - extraX)
+      if (actualExtraW > 0) {
+        for (let y = srcY; y < Math.min(editCanvas.height, srcY + srcH); y++) {
+          const t = srcH > 1 ? (y - srcY) / (srcH - 1) : 0
+          const blended = new ImageData(actualExtraW, 1)
+          for (let px = 0; px < actualExtraW; px++) {
+            const i = px * 4
+            blended.data[i]     = Math.round(extraTopStrip.data[i]     * (1 - t) + extraBottomStrip.data[i]     * t)
+            blended.data[i + 1] = Math.round(extraTopStrip.data[i + 1] * (1 - t) + extraBottomStrip.data[i + 1] * t)
+            blended.data[i + 2] = Math.round(extraTopStrip.data[i + 2] * (1 - t) + extraBottomStrip.data[i + 2] * t)
+            blended.data[i + 3] = 255
+          }
+          ctx.putImageData(blended, extraX, y)
+        }
+      }
     }
     ctx.fillStyle = textColor
 
