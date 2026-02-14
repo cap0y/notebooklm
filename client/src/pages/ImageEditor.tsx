@@ -647,7 +647,59 @@ const ImageEditor = () => {
     []
   )
 
-  // 선택 영역이 확정되면 자동으로 원본 텍스트를 측정
+  // ── 원본 텍스트 픽셀에서 실제 글자 색상 감지 ──
+  const detectTextColor = useCallback(
+    (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): string | null => {
+      if (w <= 0 || h <= 0) return null
+      const imgData = ctx.getImageData(x, y, w, h)
+      const d = imgData.data
+
+      // 1) 테두리 픽셀로 배경색 추정
+      let bgR = 0, bgG = 0, bgB = 0, bgN = 0
+      for (let col = 0; col < w; col++) {
+        for (const row of [0, 1, h - 2, h - 1]) {
+          if (row < 0 || row >= h) continue
+          const i = (row * w + col) * 4
+          bgR += d[i]; bgG += d[i + 1]; bgB += d[i + 2]; bgN++
+        }
+      }
+      for (let row = 2; row < h - 2; row++) {
+        for (const col of [0, 1, w - 2, w - 1]) {
+          if (col < 0 || col >= w) continue
+          const i = (row * w + col) * 4
+          bgR += d[i]; bgG += d[i + 1]; bgB += d[i + 2]; bgN++
+        }
+      }
+      if (bgN === 0) return null
+      bgR /= bgN; bgG /= bgN; bgB /= bgN
+
+      // 2) 배경과 크게 다른 픽셀(=텍스트 픽셀)의 최대 차이 계산
+      let maxDiff = 0
+      for (let i = 0; i < d.length; i += 4) {
+        const diff = Math.abs(d[i] - bgR) + Math.abs(d[i + 1] - bgG) + Math.abs(d[i + 2] - bgB)
+        if (diff > maxDiff) maxDiff = diff
+      }
+      const threshold = Math.max(maxDiff * 0.3, 30)
+
+      // 3) 텍스트 픽셀만 모아서 평균 색상 계산
+      let tR = 0, tG = 0, tB = 0, tN = 0
+      for (let i = 0; i < d.length; i += 4) {
+        const diff = Math.abs(d[i] - bgR) + Math.abs(d[i + 1] - bgG) + Math.abs(d[i + 2] - bgB)
+        if (diff > threshold) {
+          tR += d[i]; tG += d[i + 1]; tB += d[i + 2]; tN++
+        }
+      }
+      if (tN === 0) return null
+
+      const r = Math.round(tR / tN)
+      const g = Math.round(tG / tN)
+      const b = Math.round(tB / tN)
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+    },
+    []
+  )
+
+  // 선택 영역이 확정되면 자동으로 원본 텍스트를 측정 + 글자 색 감지
   useEffect(() => {
     if (isSelecting || resizeHandle) return
     if (!selection || !editCanvas || selection.width < 10 || selection.height < 10) {
@@ -672,7 +724,11 @@ const ImageEditor = () => {
     } else {
       setFontBold(false)
     }
-  }, [selection, isSelecting, resizeHandle, editCanvas, canvasSize, analyzeOriginalText])
+
+    // 원본 텍스트 픽셀에서 실제 글자 색상 자동 감지
+    const detected = detectTextColor(ctx, srcX, srcY, srcW, srcH)
+    setTextColorOverride(detected) // 감지된 색상으로 자동 세팅 (null이면 폴백)
+  }, [selection, isSelecting, resizeHandle, editCanvas, canvasSize, analyzeOriginalText, detectTextColor])
 
   const averageColor = (data: ImageData) => {
     let r = 0, g = 0, b = 0, count = 0
@@ -732,11 +788,13 @@ const ImageEditor = () => {
       ctx.putImageData(blended, srcX, y)
     }
 
-    // 텍스트 색상: 사용자 지정 색상이 있으면 사용, 없으면 배경 밝기 기준 자동 결정
+    // 텍스트 색상: textColorOverride(자동 감지 or 사용자 지정)가 있으면 사용
+    // 없으면 배경 밝기 기준 폴백
     let textColor: string
     if (textColorOverride) {
       textColor = textColorOverride
     } else {
+      // 폴백: 배경 밝기 기준 흑/백 추측
       const centerX = Math.min(Math.floor(srcW / 2), srcW - 1) * 4
       const midT = 0.5
       const bgR = Math.round(topStrip.data[centerX] * (1 - midT) + bottomStrip.data[centerX] * midT)
@@ -1031,10 +1089,25 @@ const ImageEditor = () => {
                   <label className="text-xs text-gray-400 mb-1 flex items-center justify-between">
                     <span>글자 색상</span>
                     <button
-                      onClick={() => setTextColorOverride(null)}
+                      onClick={() => {
+                        // 원본 텍스트에서 색상 재감지
+                        if (!editCanvas || !selection) return
+                        const ctx2 = editCanvas.getContext('2d')
+                        if (!ctx2) return
+                        const sx2 = editCanvas.width / canvasSize.width
+                        const sy2 = editCanvas.height / canvasSize.height
+                        const detected = detectTextColor(
+                          ctx2,
+                          Math.round(selection.x * sx2),
+                          Math.round(selection.y * sy2),
+                          Math.round(selection.width * sx2),
+                          Math.round(selection.height * sy2)
+                        )
+                        setTextColorOverride(detected)
+                      }}
                       className="text-blue-400 hover:text-blue-300 text-[10px]"
                     >
-                      자동 감지
+                      원본에서 재감지
                     </button>
                   </label>
                   <div className="flex items-center gap-2">
@@ -1044,11 +1117,16 @@ const ImageEditor = () => {
                       onChange={(e) => setTextColorOverride(e.target.value)}
                       className="w-8 h-8 rounded border border-gray-600 bg-transparent cursor-pointer"
                     />
+                    <div
+                      className="w-6 h-6 rounded border border-gray-600"
+                      style={{ backgroundColor: textColorOverride || '#1a1a1a' }}
+                      title="현재 글자 색상 미리보기"
+                    />
                     <span className="text-xs text-gray-400 font-mono uppercase">
-                      {textColorOverride || '자동'}
+                      {textColorOverride || '미감지'}
                     </span>
-                    {!textColorOverride && (
-                      <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">배경 밝기 기반</span>
+                    {textColorOverride && (
+                      <span className="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">자동 감지됨</span>
                     )}
                   </div>
                 </div>
