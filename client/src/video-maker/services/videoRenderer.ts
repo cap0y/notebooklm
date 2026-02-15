@@ -1,35 +1,147 @@
+import { Muxer, ArrayBufferTarget } from 'webm-muxer'
 import { Slide, SubtitleStyle } from '../types'
 import { splitTextIntoChunks, getChunkIndexByCharacterCount } from './textUtils'
 
-/**
- * 비디오 엘리먼트를 로드하고 재생 준비
- */
-const loadVideo = (url: string): Promise<HTMLVideoElement> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.crossOrigin = 'anonymous'
-    video.preload = 'auto'
-    video.muted = true
-    video.playsInline = true
+/* ─────────────────────────────────────
+   상수
+   ───────────────────────────────────── */
+const FAST_FPS = 24
+const FAST_FRAME_US = Math.round(1_000_000 / FAST_FPS)
+const LEGACY_FPS = 30
 
-    video.oncanplaythrough = () => resolve(video)
-    video.onerror = () => reject(new Error('비디오를 로드할 수 없습니다'))
+/* ─────────────────────────────────────
+   공통 유틸리티
+   ───────────────────────────────────── */
 
-    video.src = url
-    video.load()
-  })
+/** 슬라이드 재생 시간(초) */
+const getSlideDuration = (slide: Slide): number => {
+  if (slide.audioData) return slide.audioData.duration
+  if (slide.videoDuration) return slide.videoDuration
+  return 3
 }
 
+/** HEX → RGBA */
+const hexToRgba = (hex: string, alpha: number) => {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** 자막 렌더링 (공통) */
+const renderSubtitle = (
+  ctx: CanvasRenderingContext2D,
+  text: string | undefined,
+  w: number,
+  h: number,
+  style: SubtitleStyle,
+  enabled: boolean,
+) => {
+  if (!enabled || !text) return
+
+  const scaleFactor = Math.min(w, h) / 720
+  const fontSize = style.fontSize * scaleFactor
+
+  ctx.font = `bold ${fontSize}px ${style.fontFamily}, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  const textX = w / 2
+  const textY = h * (style.verticalPosition / 100)
+  const metrics = ctx.measureText(text)
+  const textWidth = metrics.width
+  const textHeight = fontSize * 1.2
+  const padding = fontSize * 0.5
+
+  // 배경 박스
+  if (style.backgroundOpacity > 0) {
+    ctx.fillStyle = hexToRgba(style.backgroundColor, style.backgroundOpacity)
+    ctx.fillRect(
+      textX - textWidth / 2 - padding,
+      textY - textHeight / 2 - padding / 2,
+      textWidth + padding * 2,
+      textHeight + padding,
+    )
+  }
+
+  // 텍스트
+  ctx.fillStyle = style.color
+  if (style.backgroundOpacity < 0.3) {
+    ctx.shadowColor = 'rgba(0,0,0,0.8)'
+    ctx.shadowBlur = 4
+    ctx.lineWidth = fontSize * 0.05
+    ctx.strokeStyle = 'black'
+    ctx.strokeText(text, textX, textY)
+  } else {
+    ctx.shadowColor = 'transparent'
+  }
+
+  ctx.fillText(text, textX, textY)
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+}
+
+/** 비디오 엘리먼트 로드 */
+const loadVideoEl = (url: string): Promise<HTMLVideoElement> =>
+  new Promise((resolve, reject) => {
+    const v = document.createElement('video')
+    v.crossOrigin = 'anonymous'
+    v.preload = 'auto'
+    v.muted = true
+    v.playsInline = true
+    v.oncanplaythrough = () => resolve(v)
+    v.onerror = () => reject(new Error('비디오 로드 실패'))
+    v.src = url
+    v.load()
+  })
+
+/** 비디오 시크 (지정 시간으로 이동) */
+const seekTo = (v: HTMLVideoElement, t: number): Promise<void> =>
+  new Promise((resolve) => {
+    if (Math.abs(v.currentTime - t) < 0.02) {
+      resolve()
+      return
+    }
+    const handler = () => {
+      v.removeEventListener('seeked', handler)
+      resolve()
+    }
+    v.addEventListener('seeked', handler)
+    v.currentTime = Math.max(0, t)
+  })
+
+/** 진행률 기반 자막 텍스트 결정 */
+const resolveSubtitle = (slide: Slide, progress: number, chunks: string[]): string => {
+  if (slide.script && chunks.length > 0) {
+    return chunks[getChunkIndexByCharacterCount(chunks, progress)]
+  }
+  return slide.subtitle || ''
+}
+
+/** 이미지/비디오를 Contain 방식으로 캔버스에 그리기 */
+const drawContain = (
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sw: number,
+  sh: number,
+  cw: number,
+  ch: number,
+) => {
+  const scale = Math.min(cw / sw, ch / sh)
+  const x = cw / 2 - (sw * scale) / 2
+  const y = ch / 2 - (sh * scale) / 2
+  ctx.drawImage(source, x, y, sw * scale, sh * scale)
+}
+
+/* ═══════════════════════════════════════════════
+   메인 엔트리
+   ═══════════════════════════════════════════════ */
+
 /**
- * 슬라이드 배열을 WebM 비디오로 렌더링
+ * 비디오 내보내기
  *
- * Canvas + MediaRecorder를 사용하여 클라이언트 측에서 비디오 생성
- * 각 슬라이드의 이미지/비디오와 오디오(있는 경우)를 결합하고 자막을 오버레이
- *
- * 비디오 슬라이드:
- *  - 원본 비디오 프레임을 캔버스에 그림
- *  - TTS 오디오가 있으면 비디오 음소거 + 오디오버퍼 재생
- *  - TTS 오디오가 없으면 비디오 자체 길이만큼 재생 (비디오 원본 오디오는 dest에 연결)
+ * 1차: WebCodecs + webm-muxer (비실시간 고속 인코딩, 10~20배 빠름)
+ * 2차: MediaRecorder 폴백 (WebCodecs 미지원 브라우저)
  */
 export const exportVideo = async (
   slides: Slide[],
@@ -40,18 +152,294 @@ export const exportVideo = async (
   includeSubtitles: boolean,
   externalCanvas?: HTMLCanvasElement,
 ): Promise<Blob> => {
+  // WebCodecs 지원 확인
+  if (typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined') {
+    try {
+      return await exportVideoFast(
+        slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas,
+      )
+    } catch (err) {
+      console.warn('⚡ WebCodecs 인코딩 실패 → MediaRecorder 폴백:', err)
+    }
+  }
+  return exportVideoLegacy(
+    slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas,
+  )
+}
+
+/* ═══════════════════════════════════════════════
+   ⚡ 고속 내보내기 (WebCodecs + webm-muxer)
+   ── CPU 최대 속도로 인코딩 (실시간 제약 없음) ──
+   ═══════════════════════════════════════════════ */
+
+async function exportVideoFast(
+  slides: Slide[],
+  width: number,
+  height: number,
+  subtitleStyle: SubtitleStyle,
+  onProgress: (progress: number, msg: string) => void,
+  includeSubtitles: boolean,
+  externalCanvas?: HTMLCanvasElement,
+): Promise<Blob> {
+  const canvas = externalCanvas || document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+
+  /* ── 1) 슬라이드 정보 계산 ── */
+  const durations = slides.map(getSlideDuration)
+  const totalDuration = durations.reduce((a, b) => a + b, 0)
+  const totalFrames = Math.max(1, Math.ceil(totalDuration * FAST_FPS))
+  const isPortrait = width < height
+  const maxChars = isPortrait ? 20 : 45
+
+  /* ── 2) 오디오 결합 (OfflineAudioContext) ── */
+  onProgress(0, '오디오 믹싱 중...')
+  const hasAudio = slides.some((s) => s.audioData || s.videoUrl)
+  let combinedAudio: AudioBuffer | null = null
+
+  if (hasAudio && totalDuration > 0) {
+    const SR = 48000
+    const offCtx = new OfflineAudioContext(2, Math.ceil(totalDuration * SR), SR)
+    let t = 0
+
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i]
+      try {
+        if (s.audioData) {
+          // TTS 오디오 → 직접 연결
+          const src = offCtx.createBufferSource()
+          src.buffer = s.audioData
+          src.connect(offCtx.destination)
+          src.start(t)
+        } else if (s.videoUrl) {
+          // 비디오 원본 오디오 추출
+          const ab = await (await fetch(s.videoUrl)).arrayBuffer()
+          const tmp = new AudioContext()
+          const buf = await tmp.decodeAudioData(ab)
+          const src = offCtx.createBufferSource()
+          src.buffer = buf
+          src.connect(offCtx.destination)
+          src.start(t)
+          await tmp.close()
+        }
+      } catch {
+        /* 오디오 없을 수 있음 */
+      }
+      t += durations[i]
+    }
+
+    try {
+      combinedAudio = await offCtx.startRendering()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /* ── 3) 코덱 확인 ── */
+  onProgress(2, '인코더 초기화 중...')
+  let vCodec = 'vp8'
+  let muxVC: 'V_VP8' | 'V_VP9' = 'V_VP8'
+
+  try {
+    const ok = await VideoEncoder.isConfigSupported({
+      codec: 'vp8',
+      width,
+      height,
+      bitrate: 4_000_000,
+    })
+    if (!ok.supported) {
+      vCodec = 'vp09.00.10.08'
+      muxVC = 'V_VP9'
+    }
+  } catch {
+    vCodec = 'vp09.00.10.08'
+    muxVC = 'V_VP9'
+  }
+
+  /* ── 4) Muxer + Encoder 생성 ── */
+  const target = new ArrayBufferTarget()
+  const muxCfg: any = {
+    target,
+    video: { codec: muxVC, width, height },
+    firstTimestampBehavior: 'offset',
+  }
+  if (combinedAudio) {
+    muxCfg.audio = {
+      codec: 'A_OPUS',
+      sampleRate: 48000,
+      numberOfChannels: combinedAudio.numberOfChannels,
+    }
+  }
+  const muxer = new Muxer(muxCfg)
+
+  const vEnc = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => console.error('VideoEncoder:', e),
+  })
+  vEnc.configure({
+    codec: vCodec,
+    width,
+    height,
+    bitrate: 4_000_000,
+    framerate: FAST_FPS,
+  })
+
+  let aEnc: AudioEncoder | null = null
+  if (combinedAudio) {
+    aEnc = new AudioEncoder({
+      output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+      error: (e) => console.error('AudioEncoder:', e),
+    })
+    aEnc.configure({
+      codec: 'opus',
+      sampleRate: 48000,
+      numberOfChannels: combinedAudio.numberOfChannels,
+      bitrate: 128_000,
+    })
+  }
+
+  /* ── 5) 리소스 프리로드 ── */
+  onProgress(3, '이미지/비디오 로딩 중...')
+  const imgMap = new Map<number, HTMLImageElement>()
+  const vidMap = new Map<number, HTMLVideoElement>()
+
+  for (let i = 0; i < slides.length; i++) {
+    if (slides[i].videoUrl) {
+      vidMap.set(i, await loadVideoEl(slides[i].videoUrl!))
+    } else {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.src = slides[i].imageUrl
+      await new Promise<void>((r) => {
+        img.onload = () => r()
+      })
+      imgMap.set(i, img)
+    }
+  }
+
+  /* ── 6) 프레임 렌더링 (최대 속도) ── */
+  let gf = 0
+
+  for (let i = 0; i < slides.length; i++) {
+    const slide = slides[i]
+    const dur = durations[i]
+    const sf = Math.max(1, Math.ceil(dur * FAST_FPS))
+    const chunks = splitTextIntoChunks(slide.script || '', maxChars)
+    const vid = vidMap.get(i)
+    const img = imgMap.get(i)
+
+    for (let f = 0; f < sf; f++) {
+      // 진행률 보고 + UI 스레드 양보 (8프레임마다)
+      if (f % 8 === 0) {
+        onProgress(
+          3 + (gf / totalFrames) * 92,
+          `슬라이드 ${i + 1}/${slides.length} (${f + 1}/${sf} 프레임)`,
+        )
+        await new Promise((r) => setTimeout(r, 0))
+      }
+
+      // 인코더 큐 백프레셔 (큐가 너무 차면 대기)
+      if (vEnc.encodeQueueSize > 15) {
+        await new Promise<void>((r) => vEnc.addEventListener('dequeue', r, { once: true }))
+      }
+
+      // 검은 배경
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, width, height)
+
+      // 슬라이드 콘텐츠
+      if (vid) {
+        await seekTo(vid, Math.min(f / FAST_FPS, (vid.duration || dur) - 0.02))
+        drawContain(ctx, vid, vid.videoWidth || width, vid.videoHeight || height, width, height)
+      } else if (img) {
+        drawContain(ctx, img, img.width, img.height, width, height)
+      }
+
+      // 자막
+      const sub = resolveSubtitle(slide, f / sf, chunks)
+      renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+
+      // 프레임 인코딩
+      const frame = new VideoFrame(canvas, { timestamp: gf * FAST_FRAME_US })
+      vEnc.encode(frame, { keyFrame: gf % (FAST_FPS * 5) === 0 })
+      frame.close()
+      gf++
+    }
+  }
+
+  /* ── 7) 오디오 인코딩 ── */
+  if (aEnc && combinedAudio) {
+    onProgress(96, '오디오 인코딩 중...')
+    const CHUNK = 4800 // 100ms 단위 (48000Hz)
+    const nch = combinedAudio.numberOfChannels
+
+    for (let off = 0; off < combinedAudio.length; off += CHUNK) {
+      const n = Math.min(CHUNK, combinedAudio.length - off)
+      const buf = new Float32Array(n * nch)
+
+      for (let ch = 0; ch < nch; ch++) {
+        buf.set(combinedAudio.getChannelData(ch).subarray(off, off + n), ch * n)
+      }
+
+      const ad = new AudioData({
+        format: 'f32-planar' as AudioSampleFormat,
+        sampleRate: combinedAudio.sampleRate,
+        numberOfFrames: n,
+        numberOfChannels: nch,
+        timestamp: Math.round((off / combinedAudio.sampleRate) * 1_000_000),
+        data: buf,
+      })
+      aEnc.encode(ad)
+      ad.close()
+
+      // 오디오 큐 백프레셔
+      if (aEnc.encodeQueueSize > 30) {
+        await new Promise<void>((r) => aEnc!.addEventListener('dequeue', r, { once: true }))
+      }
+    }
+  }
+
+  /* ── 8) 마무리 ── */
+  onProgress(98, '파일 생성 중...')
+
+  await vEnc.flush()
+  vEnc.close()
+
+  if (aEnc) {
+    await aEnc.flush()
+    aEnc.close()
+  }
+
+  muxer.finalize()
+
+  return new Blob([target.buffer], { type: 'video/webm' })
+}
+
+/* ═══════════════════════════════════════════════
+   기본 내보내기 (MediaRecorder 폴백)
+   ── WebCodecs 미지원 브라우저 (Firefox, Safari) ──
+   ═══════════════════════════════════════════════ */
+
+async function exportVideoLegacy(
+  slides: Slide[],
+  width: number,
+  height: number,
+  subtitleStyle: SubtitleStyle,
+  onProgress: (progress: number, msg: string) => void,
+  includeSubtitles: boolean,
+  externalCanvas?: HTMLCanvasElement,
+): Promise<Blob> {
   const canvas = externalCanvas || document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')
-
   if (!ctx) throw new Error('Canvas context 생성 실패')
 
-  const stream = canvas.captureStream(30) // 30 FPS
+  const stream = canvas.captureStream(LEGACY_FPS)
   const audioContext = new AudioContext()
   const dest = audioContext.createMediaStreamDestination()
 
-  // 비디오(캔버스) + 오디오 스트림 결합
   const combinedTracks = [...stream.getVideoTracks(), ...dest.stream.getAudioTracks()]
   const combinedStream = new MediaStream(combinedTracks)
 
@@ -64,62 +452,8 @@ export const exportVideo = async (
     if (e.data.size > 0) chunks.push(e.data)
   }
 
-  // HEX 색상 → RGBA 문자열 변환 헬퍼
-  const hexToRgba = (hex: string, alpha: number) => {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`
-  }
-
-  /**
-   * 자막 렌더링 공통 함수
-   */
-  const drawSubtitle = (text: string) => {
-    if (!includeSubtitles || !text || !ctx) return
-
-    const scaleFactor = Math.min(width, height) / 720
-    const fontSize = subtitleStyle.fontSize * scaleFactor
-
-    ctx.font = `bold ${fontSize}px ${subtitleStyle.fontFamily}, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-
-    const textX = width / 2
-    const textY = height * (subtitleStyle.verticalPosition / 100)
-
-    const metrics = ctx.measureText(text)
-    const textWidth = metrics.width
-    const textHeight = fontSize * 1.2
-    const padding = fontSize * 0.5
-
-    // 배경 박스
-    if (subtitleStyle.backgroundOpacity > 0) {
-      ctx.fillStyle = hexToRgba(subtitleStyle.backgroundColor, subtitleStyle.backgroundOpacity)
-      ctx.fillRect(
-        textX - textWidth / 2 - padding,
-        textY - textHeight / 2 - padding / 2,
-        textWidth + padding * 2,
-        textHeight + padding,
-      )
-    }
-
-    // 텍스트
-    ctx.fillStyle = subtitleStyle.color
-    if (subtitleStyle.backgroundOpacity < 0.3) {
-      ctx.shadowColor = 'rgba(0,0,0,0.8)'
-      ctx.shadowBlur = 4
-      ctx.lineWidth = fontSize * 0.05
-      ctx.strokeStyle = 'black'
-      ctx.strokeText(text, textX, textY)
-    } else {
-      ctx.shadowColor = 'transparent'
-    }
-
-    ctx.fillText(text, textX, textY)
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
-  }
+  const isPortrait = width < height
+  const maxCharsPerLine = isPortrait ? 20 : 45
 
   return new Promise(async (resolve, reject) => {
     recorder.onstop = () => {
@@ -127,33 +461,21 @@ export const exportVideo = async (
       audioContext.close()
       resolve(blob)
     }
-
     recorder.onerror = (e) => {
       audioContext.close()
       reject(e)
     }
-
     recorder.start()
-
-    // 화면 방향에 따른 자막 최대 글자 수 결정
-    const isPortrait = width < height
-    const maxCharsPerLine = isPortrait ? 20 : 45
 
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i]
-      onProgress((i / slides.length) * 100, `슬라이드 ${i + 1}/${slides.length} 렌더링 중...`)
-
-      // 자막 청크 사전 계산
       const scriptText = slide.script || ''
       const textChunks = splitTextIntoChunks(scriptText, maxCharsPerLine)
-      const totalChunks = textChunks.length
 
       if (slide.videoUrl) {
-        // ──── 비디오 슬라이드 렌더링 ────
+        /* ── 비디오 슬라이드 ── */
         try {
-          const video = await loadVideo(slide.videoUrl)
-
-          // 기간 결정: TTS 오디오 > 비디오 자체 길이
+          const video = await loadVideoEl(slide.videoUrl)
           let durationMs: number
           let audioSource: AudioBufferSourceNode | null = null
 
@@ -165,23 +487,20 @@ export const exportVideo = async (
             audioSource.start(audioContext.currentTime)
           } else {
             durationMs = (slide.videoDuration || video.duration) * 1000
-            // 비디오 원본 오디오를 dest에 연결
             try {
-              const mediaSource = audioContext.createMediaElementSource(video)
-              mediaSource.connect(dest)
-            } catch (e) {
-              // 비디오에 오디오 트랙이 없을 수 있음 — 무시
-              console.warn('비디오 오디오 스트림 연결 실패:', e)
+              const ms = audioContext.createMediaElementSource(video)
+              ms.connect(dest)
+            } catch {
+              /* 비디오에 오디오 없을 수 있음 */
             }
           }
 
-          // 비디오 재생 시작
           video.currentTime = 0
-          video.muted = !!slide.audioData // TTS 있으면 비디오 음소거
+          video.muted = !!slide.audioData
           await video.play()
 
-          // 프레임 루프
           const startTime = performance.now()
+          let lastReport = 0
 
           await new Promise<void>((resolveFrame) => {
             const drawFrame = () => {
@@ -189,25 +508,19 @@ export const exportVideo = async (
               const elapsed = now - startTime
               const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
 
-              // 검은 배경
+              // 진행률 보고 (200ms 간격 쓰로틀링)
+              if (now - lastReport > 200) {
+                const pct = ((i + progress) / slides.length) * 100
+                onProgress(pct, `슬라이드 ${i + 1}/${slides.length} (${Math.round(progress * 100)}%)`)
+                lastReport = now
+              }
+
               ctx.fillStyle = '#000'
               ctx.fillRect(0, 0, width, height)
+              drawContain(ctx, video, video.videoWidth || width, video.videoHeight || height, width, height)
 
-              // 비디오 프레임을 캔버스에 contain 방식으로 그리기
-              const vw = video.videoWidth || width
-              const vh = video.videoHeight || height
-              const scale = Math.min(width / vw, height / vh)
-              const x = width / 2 - (vw / 2) * scale
-              const y = height / 2 - (vh / 2) * scale
-              ctx.drawImage(video, x, y, vw * scale, vh * scale)
-
-              // 자막
-              let currentSubtitle = slide.subtitle
-              if (scriptText && totalChunks > 0) {
-                const chunkIndex = getChunkIndexByCharacterCount(textChunks, progress)
-                currentSubtitle = textChunks[chunkIndex]
-              }
-              drawSubtitle(currentSubtitle)
+              const sub = resolveSubtitle(slide, progress, textChunks)
+              renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
 
               if (elapsed < durationMs) {
                 requestAnimationFrame(drawFrame)
@@ -218,7 +531,6 @@ export const exportVideo = async (
             drawFrame()
           })
 
-          // 정리
           video.pause()
           if (audioSource) {
             audioSource.stop()
@@ -226,84 +538,96 @@ export const exportVideo = async (
           }
         } catch (err) {
           console.error(`비디오 슬라이드 ${i + 1} 렌더링 실패:`, err)
-          // 실패 시 썸네일 이미지로 폴백
-          await renderImageSlide(slide, durationFallback(slide))
+          await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest)
         }
       } else {
-        // ──── 이미지 슬라이드 렌더링 ────
-        await renderImageSlide(slide, durationFallback(slide))
+        /* ── 이미지 슬라이드 ── */
+        await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest)
       }
     }
 
     onProgress(100, '마무리 중...')
     recorder.stop()
-
-    // ── 이미지 슬라이드 렌더링 내부 함수 ──
-    async function renderImageSlide(slide: Slide, durationMs: number) {
-      // 이미지 로드
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.src = slide.imageUrl
-      await new Promise((r) => {
-        img.onload = r
-      })
-
-      // 오디오 준비
-      let source: AudioBufferSourceNode | null = null
-      if (slide.audioData) {
-        durationMs = slide.audioData.duration * 1000
-        source = audioContext.createBufferSource()
-        source.buffer = slide.audioData
-        source.connect(dest)
-        source.start(audioContext.currentTime)
-      }
-
-      // 프레임 루프
-      const startTime = performance.now()
-
-      await new Promise<void>((resolveFrame) => {
-        const drawFrame = () => {
-          const now = performance.now()
-          const elapsed = now - startTime
-          const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
-
-          // 검은 배경
-          ctx.fillStyle = '#000'
-          ctx.fillRect(0, 0, width, height)
-
-          // 이미지 Contain 방식으로 그리기
-          const scale = Math.min(width / img.width, height / img.height)
-          const x = width / 2 - (img.width / 2) * scale
-          const y = height / 2 - (img.height / 2) * scale
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
-
-          // 자막
-          let currentSubtitle = slide.subtitle
-          if (slide.audioData && scriptText && totalChunks > 0) {
-            const chunkIndex = getChunkIndexByCharacterCount(textChunks, progress)
-            currentSubtitle = textChunks[chunkIndex]
-          }
-          drawSubtitle(currentSubtitle)
-
-          if (elapsed < durationMs) {
-            requestAnimationFrame(drawFrame)
-          } else {
-            resolveFrame()
-          }
-        }
-        drawFrame()
-      })
-
-      if (source) {
-        source.stop()
-        source.disconnect()
-      }
-    }
-
-    function durationFallback(slide: Slide): number {
-      if (slide.audioData) return slide.audioData.duration * 1000
-      if (slide.videoDuration) return slide.videoDuration * 1000
-      return 3000 // 기본 3초
-    }
   })
+}
+
+/** 이미지 슬라이드 렌더링 (Legacy 전용) */
+async function renderImageSlideLegacy(
+  ctx: CanvasRenderingContext2D,
+  slide: Slide,
+  durationMs: number,
+  slideIndex: number,
+  totalSlides: number,
+  onProgress: (progress: number, msg: string) => void,
+  width: number,
+  height: number,
+  subtitleStyle: SubtitleStyle,
+  includeSubtitles: boolean,
+  maxCharsPerLine: number,
+  audioContext: AudioContext,
+  dest: MediaStreamAudioDestinationNode,
+) {
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.src = slide.imageUrl
+  await new Promise((r) => {
+    img.onload = r
+  })
+
+  let source: AudioBufferSourceNode | null = null
+  if (slide.audioData) {
+    durationMs = slide.audioData.duration * 1000
+    source = audioContext.createBufferSource()
+    source.buffer = slide.audioData
+    source.connect(dest)
+    source.start(audioContext.currentTime)
+  }
+
+  const scriptText = slide.script || ''
+  const textChunks = splitTextIntoChunks(scriptText, maxCharsPerLine)
+
+  const startTime = performance.now()
+  let lastReport = 0
+
+  await new Promise<void>((resolveFrame) => {
+    const drawFrame = () => {
+      const now = performance.now()
+      const elapsed = now - startTime
+      const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
+
+      // 진행률 보고 (200ms 간격 쓰로틀링)
+      if (now - lastReport > 200) {
+        const pct = ((slideIndex + progress) / totalSlides) * 100
+        onProgress(pct, `슬라이드 ${slideIndex + 1}/${totalSlides} (${Math.round(progress * 100)}%)`)
+        lastReport = now
+      }
+
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, width, height)
+      drawContain(ctx, img, img.width, img.height, width, height)
+
+      // 자막 (audioData 유무 관계없이 표시)
+      const sub = resolveSubtitle(slide, progress, textChunks)
+      renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+
+      if (elapsed < durationMs) {
+        requestAnimationFrame(drawFrame)
+      } else {
+        resolveFrame()
+      }
+    }
+    drawFrame()
+  })
+
+  if (source) {
+    source.stop()
+    source.disconnect()
+  }
+}
+
+/** 슬라이드 재생 시간 폴백 */
+function durationFallback(slide: Slide): number {
+  if (slide.audioData) return slide.audioData.duration * 1000
+  if (slide.videoDuration) return slide.videoDuration * 1000
+  return 3000
 }
