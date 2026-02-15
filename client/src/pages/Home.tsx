@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileText,
@@ -14,6 +14,48 @@ import {
   Video,
 } from 'lucide-react'
 import Footer from '../components/Footer'
+
+/** 구글 애드센스 디스플레이 광고 */
+const GoogleAd = () => {
+  const adRef = useRef<HTMLDivElement>(null)
+  const pushed = useRef(false)
+
+  useEffect(() => {
+    // adsbygoogle 스크립트가 이미 로드되어 있지 않으면 동적으로 삽입
+    if (!document.querySelector('script[src*="adsbygoogle"]')) {
+      const s = document.createElement('script')
+      s.async = true
+      s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3920195821853966'
+      s.crossOrigin = 'anonymous'
+      document.head.appendChild(s)
+    }
+
+    // 광고 슬롯 push (한 번만)
+    const timer = setTimeout(() => {
+      try {
+        if (!pushed.current && adRef.current) {
+          ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({})
+          pushed.current = true
+        }
+      } catch { /* 광고 차단기 등 무시 */ }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <div ref={adRef}>
+      <ins
+        className="adsbygoogle"
+        style={{ display: 'block' }}
+        data-ad-client="ca-pub-3920195821853966"
+        data-ad-slot="7754950134"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
+    </div>
+  )
+}
 
 /**
  * 메인 홈 페이지 (반응형)
@@ -282,6 +324,11 @@ const Home = () => {
           </button>
         </div>
 
+      </div>
+
+      {/* ── 구글 애드센스 광고 ── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <GoogleAd />
       </div>
 
       {/* ── 풋터 ── */}
