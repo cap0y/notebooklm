@@ -20,6 +20,7 @@ import { GoogleGenAI, Type } from '@google/genai'
 import { useAppStore, type ConvertedPage, type TextItem } from '../store/useAppStore'
 import { ElementType, type SlideData } from '../types/slide'
 import SlidePreview from '../components/SlidePreview'
+import { type ModelTier, MODEL_TIERS, getModelTier, setModelTier as saveModelTier, getTextModel } from '../utils/modelConfig'
 
 // PDF.js 워커 설정 (CDN에서 로드)
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
@@ -106,12 +107,13 @@ const analyzeSlideWithGemini = async (
   apiKey: string,
   base64Image: string,
   index: number,
+  modelName?: string,
 ): Promise<SlideData> => {
   const ai = new GoogleGenAI({ apiKey })
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: modelName || getTextModel(),
       contents: {
         parts: [
           {
@@ -391,12 +393,19 @@ const PdfConverter = () => {
   const [showApiKey, setShowApiKey] = useState(false)
   const [isGeneratingPptx, setIsGeneratingPptx] = useState(false)
   const [genProgressText, setGenProgressText] = useState('')
+  const [selectedModelTier, setSelectedModelTier] = useState<ModelTier>('standard')
 
-  // localStorage에서 Gemini API Key 불러오기
+  // localStorage에서 Gemini API Key + 모델 티어 불러오기
   useEffect(() => {
     const saved = localStorage.getItem('gemini_api_key')
     if (saved) setGeminiApiKey(saved)
+    setSelectedModelTier(getModelTier())
   }, [])
+
+  const handleModelTierChange = (tier: ModelTier) => {
+    setSelectedModelTier(tier)
+    saveModelTier(tier)
+  }
 
   const saveApiKey = (key: string) => {
     setGeminiApiKey(key)
@@ -759,7 +768,7 @@ const PdfConverter = () => {
           // JPEG로 변환하여 Gemini API 전송 크기 최적화
           const jpegUrl = await toJpeg(page.dataUrl)
           const base64 = jpegUrl.split(',')[1]
-          const slideData = await analyzeSlideWithGemini(apiKey!, base64, idx)
+          const slideData = await analyzeSlideWithGemini(apiKey!, base64, idx, MODEL_TIERS[selectedModelTier].textModel)
           // display용 원본 이미지 (full data URL)
           slideData.originalImageBase64 = page.dataUrl
           slideData.mode = 'ai'
@@ -1240,6 +1249,37 @@ const PdfConverter = () => {
                 API Key 발급 →
               </a>
             </p>
+
+            {/* AI 모델 선택 (비용 절감 옵션) */}
+            {hasApiKey && (
+              <div className="mt-3 pt-3 border-t border-gray-700/30">
+                <p className="text-[11px] text-gray-400 mb-2 font-medium">⚡ AI 모델 선택 (비용 조절)</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(Object.keys(MODEL_TIERS) as ModelTier[]).map((tier) => {
+                    const config = MODEL_TIERS[tier]
+                    const isSelected = selectedModelTier === tier
+                    const colorMap: Record<string, string> = {
+                      emerald: isSelected ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-600',
+                      blue: isSelected ? 'border-blue-500 bg-blue-500/10 text-blue-300' : 'border-gray-700 text-gray-500 hover:border-gray-600',
+                      amber: isSelected ? 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-gray-700 text-gray-500 hover:border-gray-600',
+                    }
+                    return (
+                      <button
+                        key={tier}
+                        onClick={() => handleModelTierChange(tier)}
+                        className={`border rounded-lg px-2 py-1.5 text-center transition-all ${colorMap[config.color]}`}
+                      >
+                        <div className="text-[11px] font-medium">{config.label}</div>
+                        <div className="text-[9px] opacity-70 mt-0.5">{config.textModel}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[9px] text-gray-500 mt-1.5">
+                  {MODEL_TIERS[selectedModelTier].costLabel} · 현재: <span className="text-gray-400 font-mono">{MODEL_TIERS[selectedModelTier].textModel}</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

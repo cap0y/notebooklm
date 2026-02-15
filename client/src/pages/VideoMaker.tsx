@@ -9,6 +9,7 @@ import { base64ToBytes, decodeAudioData } from '../video-maker/services/audioUti
 import { exportVideo } from '../video-maker/services/videoRenderer'
 import { convertPdfToImages } from '../video-maker/services/pdfUtils'
 import { exportPptx } from '../video-maker/services/pptxService'
+import { type ModelTier, MODEL_TIERS, getModelTier, setModelTier as saveModelTier } from '../utils/modelConfig'
 
 /**
  * 동영상 만들기 페이지 (MagicSlide Studio)
@@ -53,6 +54,16 @@ const VideoMaker: React.FC = () => {
     current: 0,
     total: 0,
   })
+
+  // AI 모델 선택
+  const [modelTier, setModelTier] = useState<ModelTier>('standard')
+  const [showModelSelect, setShowModelSelect] = useState(false)
+  useEffect(() => { setModelTier(getModelTier()) }, [])
+  const handleModelChange = (tier: ModelTier) => {
+    setModelTier(tier)
+    saveModelTier(tier)
+    setShowModelSelect(false)
+  }
   const batchCancelRef = useRef(false)
 
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>({
@@ -551,6 +562,47 @@ const VideoMaker: React.FC = () => {
             <div className={`w-3 h-3 rounded-full ${includeSubtitles ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-600'}`}></div>
             <span className="hidden sm:inline">자막 {includeSubtitles ? 'ON' : 'OFF'}</span>
           </button>
+
+          {/* AI 모델 선택 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowModelSelect(!showModelSelect)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                modelTier === 'economy' ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' :
+                modelTier === 'premium' ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' :
+                'border-blue-500/50 text-blue-400 bg-blue-500/10'
+              }`}
+              title="AI 모델 선택 (비용 조절)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                <path fillRule="evenodd" d="M8.34 1.804A1 1 0 019.32 1h1.36a1 1 0 01.98.804l.295 1.473c.497.144.971.342 1.416.587l1.25-.834a1 1 0 011.262.125l.962.962a1 1 0 01.125 1.262l-.834 1.25c.245.445.443.919.587 1.416l1.473.295a1 1 0 01.804.98v1.361a1 1 0 01-.804.98l-1.473.295a6.95 6.95 0 01-.587 1.416l.834 1.25a1 1 0 01-.125 1.262l-.962.962a1 1 0 01-1.262.125l-1.25-.834a6.953 6.953 0 01-1.416.587l-.295 1.473a1 1 0 01-.98.804H9.32a1 1 0 01-.98-.804l-.295-1.473a6.957 6.957 0 01-1.416-.587l-1.25.834a1 1 0 01-1.262-.125l-.962-.962a1 1 0 01-.125-1.262l.834-1.25a6.957 6.957 0 01-.587-1.416l-1.473-.295A1 1 0 011 10.68V9.32a1 1 0 01.804-.98l1.473-.295c.144-.497.342-.971.587-1.416l-.834-1.25a1 1 0 01.125-1.262l.962-.962A1 1 0 015.38 3.03l1.25.834a6.957 6.957 0 011.416-.587l.294-1.473zM13 10a3 3 0 11-6 0 3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden sm:inline">{MODEL_TIERS[modelTier].label}</span>
+            </button>
+            {showModelSelect && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50 p-2 space-y-1">
+                {(Object.keys(MODEL_TIERS) as ModelTier[]).map((tier) => {
+                  const c = MODEL_TIERS[tier]
+                  const isActive = modelTier === tier
+                  return (
+                    <button
+                      key={tier}
+                      onClick={() => handleModelChange(tier)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${
+                        isActive ? 'bg-indigo-600/20 border border-indigo-500/40 text-white' : 'hover:bg-gray-700 text-gray-400'
+                      }`}
+                    >
+                      <div className="font-medium">{c.label}</div>
+                      <div className="text-[10px] opacity-60 mt-0.5">{c.costLabel}</div>
+                    </button>
+                  )
+                })}
+                <div className="text-[9px] text-gray-500 px-2 pt-1 border-t border-gray-700/50">
+                  TTS 모델은 변경할 수 없습니다
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 내보내기 버튼들 */}
           <div className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai'
 import { VoiceName, ScriptLevel } from '../types'
+import { getTextModel, getTtsModel } from '../../utils/modelConfig'
 
 /**
  * Gemini API Key를 가져오는 헬퍼
@@ -62,7 +63,7 @@ export const generateSlideScript = async (
     }`
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: getTextModel(),
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
@@ -114,7 +115,7 @@ export const generateSpeech = async (text: string, voiceName: VoiceName): Promis
     if (!cleanText || cleanText.includes('분석 중') || cleanText.startsWith('오류')) return null
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-tts',
+      model: getTtsModel(),
       contents: [{ parts: [{ text: cleanText }] }],
       config: {
         responseModalities: ['AUDIO' as any],
