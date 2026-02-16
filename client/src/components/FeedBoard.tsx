@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  ArrowUp, ArrowDown, MessageSquare, Share2, Flag, Plus,
-  Image, X, ChevronLeft, ChevronRight, Loader2, Smile,
-  AlertTriangle, Eye, ExternalLink, Youtube,
+  ArrowUp, ArrowDown, MessageSquare, Share2, Flag,
+  Image, X, ChevronLeft, ChevronRight, Loader2,
+  AlertTriangle, Eye, Youtube,
 } from 'lucide-react'
+import EmojiPicker from './EmojiPicker'
 
 // ── 타입 정의 ──
 interface FeedPost {
@@ -324,7 +325,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
 
       {/* 게시물 목록 */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-2">
+        <div className="max-w-5xl mx-auto px-4 py-2">
 
           {/* ── 인라인 게시물 작성 폼 ── */}
           {nickname && (
@@ -390,7 +391,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                       className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
                     />
 
-                    {/* 미디어 업로드 */}
+                    {/* 미디어 업로드 & 이모지 */}
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => document.getElementById('feed-media-input')?.click()}
@@ -399,6 +400,9 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                         <Image className="w-3.5 h-3.5" />
                         파일 첨부
                       </button>
+                      <EmojiPicker
+                        onSelect={(emoji) => setNewContent((prev) => prev + emoji)}
+                      />
                       <input
                         id="feed-media-input"
                         type="file"

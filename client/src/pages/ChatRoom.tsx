@@ -5,14 +5,13 @@ import {
   Users,
   Loader2,
   Trash2,
-  ChevronDown,
-  Plus,
   Settings,
   MessageCircle,
   Newspaper,
 } from 'lucide-react'
 import FeedBoard from '../components/FeedBoard'
 import FeedDetail from '../components/FeedDetail'
+import EmojiPicker from '../components/EmojiPicker'
 
 // ── 타입 정의 ──
 interface ChatMessage {
@@ -316,11 +315,11 @@ export default function ChatRoom() {
       if (msgDate !== lastDate) {
         elements.push(
           <div key={`date-${msgDate}`} className="flex items-center gap-4 py-2 px-4">
-            <div className="flex-1 h-px bg-gray-700" />
+            <div className="flex-1 h-px bg-gray-800/60" />
             <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
               {formatDateDivider(msg.created_at)}
             </span>
-            <div className="flex-1 h-px bg-gray-700" />
+            <div className="flex-1 h-px bg-gray-800/60" />
           </div>
         )
         lastAuthor = ''
@@ -537,7 +536,7 @@ export default function ChatRoom() {
           </h3>
           {activeChannelInfo?.description && (
             <>
-              <div className="w-px h-5 bg-gray-700 hidden sm:block" />
+              <div className="w-px h-5 bg-gray-800/60 hidden sm:block" />
               <p className="text-xs text-gray-400 truncate hidden sm:block">
                 {activeChannelInfo.description}
               </p>
@@ -606,7 +605,7 @@ export default function ChatRoom() {
                     placeholder={`#${activeChannelInfo?.name || activeChannel}에 메시지 보내기`}
                     rows={1}
                     maxLength={2000}
-                    className="w-full px-4 py-3 pr-12 rounded-lg bg-gray-900/60 border border-gray-800/60 text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                    className="w-full px-4 py-3 pr-24 rounded-lg bg-gray-900/60 border border-gray-800/60 text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                     style={{
                       minHeight: '44px',
                       maxHeight: '200px',
@@ -618,17 +617,25 @@ export default function ChatRoom() {
                       target.style.height = Math.min(target.scrollHeight, 200) + 'px'
                     }}
                   />
-                  <button
-                    onClick={sendMessage}
-                    disabled={!inputMessage.trim() || isSending}
-                    className="absolute right-2 bottom-2 p-2 rounded-lg text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </button>
+                  <div className="absolute right-2 bottom-2 flex items-center gap-0.5">
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        setInputMessage((prev) => prev + emoji)
+                        inputRef.current?.focus()
+                      }}
+                    />
+                    <button
+                      onClick={sendMessage}
+                      disabled={!inputMessage.trim() || isSending}
+                      className="p-2 rounded-lg text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                    >
+                      {isSending ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Send className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

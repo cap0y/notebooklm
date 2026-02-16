@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Share2, Flag,
   ChevronLeft, ChevronRight, Loader2, Eye, AlertTriangle,
-  Send, Trash2, X, Youtube,
+  Trash2, X,
 } from 'lucide-react'
+import EmojiPicker from './EmojiPicker'
 
 // ── 타입 ──
 interface FeedPost {
@@ -369,7 +370,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
 
       {/* 본문 스크롤 영역 */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* 신고 오버레이 */}
           {isReported && !showReportedContent && (
             <div className="p-8 flex flex-col items-center">
@@ -539,20 +540,25 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                     rows={3}
                     className="w-full px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
                   />
-                  <div className="flex justify-end gap-2 mt-2">
-                    <button
-                      onClick={() => setNewComment('')}
-                      className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-300"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleSubmitComment}
-                      disabled={isSubmitting || !newComment.trim()}
-                      className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-40"
-                    >
-                      {isSubmitting ? '작성 중...' : '댓글'}
-                    </button>
+                  <div className="flex items-center justify-between mt-2">
+                    <EmojiPicker
+                      onSelect={(emoji) => setNewComment((prev) => prev + emoji)}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setNewComment('')}
+                        className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-300"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleSubmitComment}
+                        disabled={isSubmitting || !newComment.trim()}
+                        className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        {isSubmitting ? '작성 중...' : '댓글'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -701,20 +707,25 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                               rows={2}
                               className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
                             />
-                            <div className="flex justify-end gap-2 mt-2">
-                              <button
-                                onClick={() => { setExpandedCommentId(null); setReplyTo(null); setNewComment('') }}
-                                className="px-3 py-1 text-xs text-gray-500"
-                              >
-                                취소
-                              </button>
-                              <button
-                                onClick={handleSubmitComment}
-                                disabled={isSubmitting || !newComment.trim()}
-                                className="px-4 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-40"
-                              >
-                                {isSubmitting ? '작성 중...' : '답글'}
-                              </button>
+                            <div className="flex items-center justify-between mt-2">
+                              <EmojiPicker
+                                onSelect={(emoji) => setNewComment((prev) => prev + emoji)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => { setExpandedCommentId(null); setReplyTo(null); setNewComment('') }}
+                                  className="px-3 py-1 text-xs text-gray-500"
+                                >
+                                  취소
+                                </button>
+                                <button
+                                  onClick={handleSubmitComment}
+                                  disabled={isSubmitting || !newComment.trim()}
+                                  className="px-4 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-40"
+                                >
+                                  {isSubmitting ? '작성 중...' : '답글'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
