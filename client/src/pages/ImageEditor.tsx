@@ -887,32 +887,24 @@ const ImageEditor = () => {
     const glyphDescent = glyphMetrics.actualBoundingBoxDescent
 
     const lineH = textAreaHeight / lines.length
-    const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
+    const padX = 2
 
     for (let i = 0; i < lines.length; i++) {
       const slotTop = textAreaTop + i * lineH
       const baselineY = slotTop + (lineH + glyphAscent - glyphDescent) / 2
       const drawX = srcX + padX
       const line = lines[i]
-
-      // ── 글자별 간격 조절로 선택 영역에 자연스럽게 맞춤 ──
-      // Canvas 폰트의 기본 자간이 원본보다 넓을 수 있으므로,
-      // 선택 영역 폭에 맞춰 글자 간 여백만 줄임 (글자 형태는 변형 없음)
-      const targetW = srcW - padX * 2
       const renderedW = ctx.measureText(line).width
+      const availW = srcW - padX
 
-      if (line.length > 1 && renderedW > targetW) {
-        // 글자별로 그려서 간격만 줄임
-        const chars = [...line]  // 한글 유니코드 안전 분리
-        const charWidths = chars.map(ch => ctx.measureText(ch).width)
-        const totalCharW = charWidths.reduce((s, w) => s + w, 0)
-        // 줄여야 할 여백 = (렌더링폭 - 타겟폭) / (글자수 - 1)
-        const spacingReduce = (renderedW - targetW) / (chars.length - 1)
-        let x = drawX
-        for (let c = 0; c < chars.length; c++) {
-          ctx.fillText(chars[c], x, baselineY)
-          x += charWidths[c] - spacingReduce
-        }
+      if (renderedW > availW && renderedW > 0) {
+        // 텍스트가 선택 영역보다 넓으면 가로만 축소하여 맞춤
+        const scaleX = availW / renderedW
+        ctx.save()
+        ctx.translate(drawX, 0)
+        ctx.scale(scaleX, 1)
+        ctx.fillText(line, 0, baselineY)
+        ctx.restore()
       } else {
         ctx.fillText(line, drawX, baselineY)
       }
