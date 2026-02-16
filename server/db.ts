@@ -160,6 +160,19 @@ export async function initBoardTables() {
     `)
     console.log('📦 feed_reports 테이블 준비 완료')
 
+    // ─── 피드 이모지 리액션 테이블 ───
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_reactions (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER REFERENCES feed_posts(id) ON DELETE CASCADE,
+        author_name VARCHAR(50) NOT NULL,
+        emoji VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, author_name, emoji)
+      );
+    `)
+    console.log('📦 feed_reactions 테이블 준비 완료')
+
     // 인덱스 생성
     await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)`)
@@ -167,6 +180,7 @@ export async function initBoardTables() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_posts_created ON feed_posts(created_at DESC)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_comments_post ON feed_comments(post_id)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_votes_post ON feed_votes(post_id)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_reactions_post ON feed_reactions(post_id)`)
 
     // 피드 댓글 수 자동 업데이트 트리거
     await client.query(`

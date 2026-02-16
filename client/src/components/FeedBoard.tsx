@@ -2,11 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ArrowUp, ArrowDown, MessageSquare, Share2, Flag,
   Image, X, ChevronLeft, ChevronRight, Loader2,
-  AlertTriangle, Eye, Youtube,
+  AlertTriangle, Eye, Youtube, SmilePlus,
 } from 'lucide-react'
 import EmojiPicker from './EmojiPicker'
 
 // ── 타입 정의 ──
+interface Reaction {
+  emoji: string
+  count: number
+  userReacted: boolean
+}
+
 interface FeedPost {
   id: number
   author_name: string
@@ -24,6 +30,7 @@ interface FeedPost {
   report_count: number
   created_at: string
   userVote: string | null
+  reactions: Reaction[]
 }
 
 interface FeedBoardProps {
@@ -183,6 +190,34 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
       }
     } catch (err) {
       console.error('투표 실패:', err)
+    }
+  }
+
+  // ── 이모지 리액션 ──
+  const [reactionPickerPostId, setReactionPickerPostId] = useState<number | null>(null)
+
+  const handleReaction = async (postId: number, emoji: string) => {
+    if (!nickname) return
+    setReactionPickerPostId(null)
+    try {
+      const res = await fetch(`/api/feed/posts/${postId}/reactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Author-Name': nickname,
+        },
+        body: JSON.stringify({ emoji }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, reactions: data.reactions } : p
+          )
+        )
+      }
+    } catch (err) {
+      console.error('리액션 실패:', err)
     }
   }
 
@@ -662,6 +697,26 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                   </div>
                 )}
 
+                {/* 이모지 리액션 표시 */}
+                {post.reactions && post.reactions.length > 0 && (
+                  <div className="px-3 pb-1 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                    {post.reactions.map((r) => (
+                      <button
+                        key={r.emoji}
+                        onClick={() => handleReaction(post.id, r.emoji)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                          r.userReacted
+                            ? 'bg-blue-500/20 border border-blue-500/40 text-blue-300'
+                            : 'bg-gray-800/60 border border-gray-700/40 text-gray-300 hover:bg-gray-700/60'
+                        }`}
+                      >
+                        <span className="text-sm">{r.emoji}</span>
+                        <span className="font-medium">{r.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* 액션 버튼 */}
                 <div className="px-2 py-1.5 flex items-center gap-1 text-xs">
                   {/* 투표 */}
@@ -699,6 +754,28 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>{post.comment_count}</span>
                   </button>
+
+                  {/* 이모지 리액션 추가 */}
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 text-gray-300 hover:bg-gray-700/60"
+                      onClick={() =>
+                        setReactionPickerPostId(
+                          reactionPickerPostId === post.id ? null : post.id
+                        )
+                      }
+                    >
+                      <SmilePlus className="w-3.5 h-3.5" />
+                    </button>
+                    {reactionPickerPostId === post.id && (
+                      <div className="absolute bottom-full left-0 mb-1 z-30">
+                        <EmojiPicker
+                          onSelect={(emoji) => handleReaction(post.id, emoji)}
+                          autoOpen
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   {/* 공유 */}
                   <button

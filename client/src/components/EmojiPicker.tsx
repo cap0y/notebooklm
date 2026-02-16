@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Smile, X } from 'lucide-react'
+import { Smile } from 'lucide-react'
 
 // ── 이모지 카테고리 데이터 ──
 const EMOJI_CATEGORIES = [
@@ -53,10 +53,12 @@ const EMOJI_CATEGORIES = [
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void
   className?: string
+  /** 렌더 즉시 열기 (리액션 전용) */
+  autoOpen?: boolean
 }
 
-const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, className = '' }) => {
-  const [isOpen, setIsOpen] = useState(false)
+const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, className = '', autoOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(autoOpen)
   const [activeCategory, setActiveCategory] = useState(0)
   const [search, setSearch] = useState('')
   const pickerRef = useRef<HTMLDivElement>(null)
@@ -87,19 +89,21 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, className = '' }) =
 
   return (
     <div ref={pickerRef} className={`relative ${className}`}>
-      {/* 토글 버튼 */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-400 hover:bg-gray-800/60 transition-colors"
-        title="이모티콘"
-      >
-        <Smile className="w-5 h-5" />
-      </button>
+      {/* 토글 버튼 (autoOpen이면 숨김) */}
+      {!autoOpen && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-400 hover:bg-gray-800/60 transition-colors"
+          title="이모티콘"
+        >
+          <Smile className="w-5 h-5" />
+        </button>
+      )}
 
       {/* 이모지 피커 패널 */}
       {isOpen && (
-        <div className="absolute bottom-full right-0 mb-2 w-[340px] bg-gray-900 border border-gray-800/60 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className={`${autoOpen ? '' : 'absolute bottom-full right-0 mb-2'} w-[340px] bg-gray-900 border border-gray-800/60 rounded-xl shadow-2xl z-50 overflow-hidden`}>
           {/* 카테고리 탭 */}
           <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-800/50 overflow-x-auto scrollbar-hide">
             {EMOJI_CATEGORIES.map((cat, idx) => (

@@ -80,6 +80,39 @@ router.get('/posts', async (req: Request, res: Response) => {
       postsWithVotes = posts.map((p: any) => ({ ...p, userVote: null }))
     }
 
+    // 리액션 데이터 가져오기
+    if (postsWithVotes.length > 0) {
+      const postIds = postsWithVotes.map((p: any) => p.id)
+      const placeholders = postIds.map((_: any, i: number) => `$${i + 1}`).join(',')
+
+      const reactionsQuery = authorName
+        ? `SELECT post_id, emoji, COUNT(*)::int as count,
+                  BOOL_OR(author_name = $${postIds.length + 1}) as user_reacted
+           FROM feed_reactions
+           WHERE post_id IN (${placeholders})
+           GROUP BY post_id, emoji
+           ORDER BY count DESC`
+        : `SELECT post_id, emoji, COUNT(*)::int as count, false as user_reacted
+           FROM feed_reactions
+           WHERE post_id IN (${placeholders})
+           GROUP BY post_id, emoji
+           ORDER BY count DESC`
+
+      const reactionsParams = authorName ? [...postIds, authorName] : postIds
+      const reactions = await query(reactionsQuery, reactionsParams)
+
+      const reactionMap: Record<number, Array<{ emoji: string; count: number; userReacted: boolean }>> = {}
+      reactions.forEach((r: any) => {
+        if (!reactionMap[r.post_id]) reactionMap[r.post_id] = []
+        reactionMap[r.post_id].push({ emoji: r.emoji, count: r.count, userReacted: r.user_reacted })
+      })
+
+      postsWithVotes = postsWithVotes.map((p: any) => ({
+        ...p,
+        reactions: reactionMap[p.id] || [],
+      }))
+    }
+
     const countResult = await query(`SELECT COUNT(*) as total FROM feed_posts`)
     const total = parseInt(countResult[0].total)
 
@@ -457,6 +490,53 @@ router.post('/posts/:id/comments/:commentId/vote', async (req: Request, res: Res
   } catch (error) {
     console.error('❌ 댓글 투표 오류:', error)
     res.status(500).json({ error: '투표에 실패했습니다.' })
+  }
+})
+
+// ========== 이모지 리액션 API ==========
+
+// 리액션 토글 (추가/제거)
+router.post('/posts/:id/reactions', async (req: Request, res: Response) => {
+  try {
+    const postId = parseInt(req.params.id, 10)
+    const { emoji } = req.body
+    const authorName = req.headers['x-author-name'] as string
+
+    if (!authorName) return res.status(400).json({ error: '닉네임이 필요합니다.' })
+    if (!emoji?.trim()) return res.status(400).json({ error: '이모지를 선택해주세요.' })
+
+    // 기존 리액션 확인
+    const existing = await query(
+      `SELECT id FROM feed_reactions WHERE post_id = $1 AND author_name = $2 AND emoji = $3`,
+      [postId, authorName, emoji]
+    )
+
+    if (existing.length > 0) {
+      // 이미 있으면 제거 (토글)
+      await query(`DELETE FROM feed_reactions WHERE id = $1`, [existing[0].id])
+    } else {
+      // 없으면 추가
+      await query(
+        `INSERT INTO feed_reactions (post_id, author_name, emoji) VALUES ($1, $2, $3)`,
+        [postId, authorName, emoji]
+      )
+    }
+
+    // 해당 게시글의 모든 리액션 그룹별 반환
+    const reactions = await query(
+      `SELECT emoji, COUNT(*)::int as count,
+              BOOL_OR(author_name = $2) as user_reacted
+       FROM feed_reactions
+       WHERE post_id = $1
+       GROUP BY emoji
+       ORDER BY count DESC`,
+      [postId, authorName]
+    )
+
+    res.json({ reactions })
+  } catch (error) {
+    console.error('❌ 리액션 오류:', error)
+    res.status(500).json({ error: '리액션에 실패했습니다.' })
   }
 })
 
