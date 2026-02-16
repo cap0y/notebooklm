@@ -515,7 +515,7 @@ export default function ChatRoom() {
       </div>
 
       {/* ─── 메인 영역 ─── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-gray-950">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-gray-950">
         {/* 채널 헤더 */}
         <div className="h-12 px-4 flex items-center gap-3 border-b border-gray-800/50 shadow-sm shrink-0">
           {/* 모바일 햄버거 */}
@@ -546,7 +546,7 @@ export default function ChatRoom() {
 
         {/* 피드 게시판 OR 채팅 영역 */}
         {activeChannelInfo?.type === 'feed' ? (
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 flex flex-col min-h-0">
             {feedDetailPostId !== null ? (
               <FeedDetail
                 postId={feedDetailPostId}

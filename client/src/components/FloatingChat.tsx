@@ -195,7 +195,7 @@ const FloatingChat: React.FC = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 rounded-full shadow-2xl shadow-blue-900/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
+        className="fixed bottom-24 md:bottom-20 right-4 md:right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-500 rounded-full shadow-2xl shadow-blue-900/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 group"
       >
         <MessageCircle className="w-6 h-6 text-white" />
         {/* 읽지 않은 메시지 뱃지 */}
@@ -217,7 +217,7 @@ const FloatingChat: React.FC = () => {
     ? { position: 'fixed', inset: '0', width: '100%', height: '100%', borderRadius: 0 }
     : {
         position: 'fixed',
-        bottom: window.innerWidth < 768 ? '72px' : '24px', // 모바일: 하단 네비 위
+        bottom: window.innerWidth < 768 ? '96px' : '80px', // 모바일: 하단 네비 위, 데스크탑: 입력창 위
         right: window.innerWidth < 768 ? '8px' : '24px',
         width: `${size.width}px`,
         height: `${size.height}px`,

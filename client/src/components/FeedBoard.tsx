@@ -340,7 +340,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
   const getScore = (up: number, down: number) => up - down
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-gray-950">
+    <div className="flex-1 flex flex-col min-h-0 bg-gray-950">
       {/* 정렬 탭 */}
       <div className="px-4 py-2 border-b border-gray-800/50 flex items-center gap-2 shrink-0">
         {(['latest', 'popular', 'trending'] as const).map((s) => (
