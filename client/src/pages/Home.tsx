@@ -254,42 +254,15 @@ const Home = () => {
             </div>
           </button>
 
-          {/* 동영상 스튜디오 */}
-          <button
-            onClick={() => navigate('/video-maker')}
-            className="w-full bg-gray-900/60 border border-gray-800/60 rounded-xl p-4 sm:p-6 text-left hover:border-gray-700 active:bg-gray-800/40 transition-all group md:col-span-2"
-          >
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Video className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-medium text-sm sm:text-base mb-1 sm:mb-1.5">AI 동영상 스튜디오</h3>
-                <ul className="space-y-1">
-                  <li className="text-gray-500 text-xs flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    PDF·이미지·MP4 영상을 슬라이드로 구성하여 동영상 제작
-                  </li>
-                  <li className="text-gray-500 text-xs flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    Gemini AI 기반 나레이션 대본 생성 + TTS 음성 합성
-                  </li>
-                  <li className="text-gray-500 text-xs flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-gray-600 shrink-0" />
-                    자막 스타일 편집 + WebM/PPTX 내보내기 지원
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </button>
         </div>
 
-        {/* ── 외부 서비스 바로가기 ── */}
+        {/* ── 외부 서비스 & 동영상 스튜디오 ── */}
         <div className="mb-8 sm:mb-14">
           <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4 sm:mb-6 text-center">
-            외부 서비스
+            서비스 바로가기
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* NotebookLM 바로가기 */}
             <a
               href="https://notebooklm.google.com/"
               target="_blank"
@@ -309,6 +282,22 @@ const Home = () => {
                 </p>
               </div>
             </a>
+
+            {/* AI 동영상 스튜디오 */}
+            <button
+              onClick={() => navigate('/video-maker')}
+              className="w-full bg-gray-900/60 border border-gray-800/60 rounded-xl p-4 sm:p-5 text-left hover:border-indigo-500/40 hover:bg-indigo-500/5 active:bg-gray-800/40 transition-all group flex items-center gap-3 sm:gap-4"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Video className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white font-medium text-sm sm:text-base">AI 동영상 스튜디오</h3>
+                <p className="text-gray-500 text-xs mt-1">
+                  PDF·이미지·영상 → AI 나레이션 + TTS 음성 → WebM/PPTX 내보내기
+                </p>
+              </div>
+            </button>
           </div>
         </div>
 
