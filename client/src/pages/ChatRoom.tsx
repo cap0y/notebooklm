@@ -290,7 +290,7 @@ export default function ChatRoom() {
       const channelInfo = DEFAULT_CHANNELS.find((c) => c.id === activeChannel)
       return (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-          <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-full bg-gray-900/60 flex items-center justify-center mb-4">
             <Hash className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-2xl font-bold text-white mb-2">
@@ -333,7 +333,7 @@ export default function ChatRoom() {
       elements.push(
         <div
           key={msg.id}
-          className={`group flex items-start gap-4 px-4 hover:bg-gray-800/30 ${isGrouped ? 'py-0.5' : 'mt-3 py-1'}`}
+          className={`group flex items-start gap-4 px-4 hover:bg-gray-900/40 ${isGrouped ? 'py-0.5' : 'mt-3 py-1'}`}
         >
           {/* 아바타 */}
           {isGrouped ? (
@@ -396,7 +396,7 @@ export default function ChatRoom() {
   const activeChannelInfo = DEFAULT_CHANNELS.find((c) => c.id === activeChannel)
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-gray-900">
+    <div className="flex-1 flex overflow-hidden bg-gray-950">
       {/* ─── 모바일 오버레이 배경 ─── */}
       {showChannelSidebar && (
         <div
@@ -411,13 +411,13 @@ export default function ChatRoom() {
           ${showChannelSidebar ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0
           fixed md:static inset-y-0 left-0 z-40 md:z-auto
-          w-60 bg-gray-850 border-r border-gray-800/50 flex flex-col shrink-0
+          w-60 border-r border-gray-800/50 flex flex-col shrink-0
           transition-transform duration-200 md:transition-none
-          bg-[#2B2D31]
+          bg-gray-900/80 backdrop-blur-sm
         `}
       >
         {/* 서버 헤더 */}
-        <div className="h-12 px-4 flex items-center border-b border-gray-900/50 shadow-sm">
+        <div className="h-12 px-4 flex items-center border-b border-gray-800/50 shadow-sm">
           <h2 className="font-semibold text-white text-sm truncate">AI 한글 에디터</h2>
         </div>
 
@@ -438,8 +438,8 @@ export default function ChatRoom() {
               }}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors mb-0.5 ${
                 activeChannel === ch.id
-                  ? 'bg-gray-700/50 text-white font-medium'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'
+                  ? 'bg-gray-800/60 text-white font-medium'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
               }`}
             >
               <Hash className="w-4 h-4 shrink-0 opacity-60" />
@@ -463,8 +463,8 @@ export default function ChatRoom() {
               }}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors mb-0.5 ${
                 activeChannel === ch.id
-                  ? 'bg-gray-700/50 text-white font-medium'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'
+                  ? 'bg-gray-800/60 text-white font-medium'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
               }`}
             >
               <Newspaper className="w-4 h-4 shrink-0 opacity-60" />
@@ -474,7 +474,7 @@ export default function ChatRoom() {
         </div>
 
         {/* 유저 패널 (하단) */}
-        <div className="h-[52px] px-2 flex items-center bg-[#232428] border-t border-gray-900/50">
+        <div className="h-[52px] px-2 flex items-center bg-gray-900/60 border-t border-gray-800/50">
           {nickname ? (
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div
@@ -516,9 +516,9 @@ export default function ChatRoom() {
       </div>
 
       {/* ─── 메인 영역 ─── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#313338]">
+      <div className="flex-1 flex flex-col min-w-0 bg-gray-950">
         {/* 채널 헤더 */}
-        <div className="h-12 px-4 flex items-center gap-3 border-b border-gray-900/50 shadow-sm shrink-0">
+        <div className="h-12 px-4 flex items-center gap-3 border-b border-gray-800/50 shadow-sm shrink-0">
           {/* 모바일 햄버거 */}
           <button
             onClick={() => setShowChannelSidebar(true)}
@@ -592,7 +592,7 @@ export default function ChatRoom() {
                     setTempPassword('')
                     setShowNicknameSetup(true)
                   }}
-                  className="w-full py-3 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors text-sm font-medium"
+                    className="w-full py-3 rounded-lg bg-gray-900/60 border border-gray-800/60 text-gray-300 hover:bg-gray-800/60 hover:text-white transition-colors text-sm font-medium"
                 >
                   닉네임을 설정하고 채팅에 참여하세요
                 </button>
@@ -606,7 +606,7 @@ export default function ChatRoom() {
                     placeholder={`#${activeChannelInfo?.name || activeChannel}에 메시지 보내기`}
                     rows={1}
                     maxLength={2000}
-                    className="w-full px-4 py-3 pr-12 rounded-lg bg-[#383A40] text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                    className="w-full px-4 py-3 pr-12 rounded-lg bg-gray-900/60 border border-gray-800/60 text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                     style={{
                       minHeight: '44px',
                       maxHeight: '200px',
@@ -639,7 +639,7 @@ export default function ChatRoom() {
       {/* ─── 닉네임 설정 모달 ─── */}
       {showNicknameSetup && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#313338] rounded-xl p-6 w-full max-w-sm border border-gray-700 shadow-2xl">
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-sm border border-gray-800/60 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-1">닉네임 설정</h3>
             <p className="text-sm text-gray-400 mb-5">
               채팅에 참여하려면 닉네임과 비밀번호를 설정하세요.
@@ -654,7 +654,7 @@ export default function ChatRoom() {
                   onChange={(e) => setTempNickname(e.target.value)}
                   placeholder="표시될 이름"
                   maxLength={50}
-                  className="w-full px-3 py-2.5 rounded-lg bg-[#1E1F22] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-950 border border-gray-800/60 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
                   onKeyDown={(e) => e.key === 'Enter' && saveNickname()}
                   autoFocus
                 />
@@ -666,7 +666,7 @@ export default function ChatRoom() {
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
                   placeholder="메시지 삭제 시 필요"
-                  className="w-full px-3 py-2.5 rounded-lg bg-[#1E1F22] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-950 border border-gray-800/60 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
                   onKeyDown={(e) => e.key === 'Enter' && saveNickname()}
                 />
               </div>
@@ -674,7 +674,7 @@ export default function ChatRoom() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowNicknameSetup(false)}
-                className="flex-1 py-2.5 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm font-medium transition-colors"
+                className="flex-1 py-2.5 rounded-lg bg-gray-800/60 text-gray-300 hover:bg-gray-700/60 text-sm font-medium transition-colors"
               >
                 취소
               </button>
@@ -693,7 +693,7 @@ export default function ChatRoom() {
       {/* ─── 삭제 확인 모달 ─── */}
       {deleteTarget !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#313338] rounded-xl p-6 w-full max-w-sm border border-gray-700 shadow-2xl">
+          <div className="bg-gray-900 rounded-xl p-6 w-full max-w-sm border border-gray-800/60 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-1">메시지 삭제</h3>
             <p className="text-sm text-gray-400 mb-5">
               이 메시지를 삭제하려면 작성 시 사용한 비밀번호를 입력하세요.
@@ -706,7 +706,7 @@ export default function ChatRoom() {
                 setDeleteError('')
               }}
               placeholder="비밀번호"
-              className="w-full px-3 py-2.5 rounded-lg bg-[#1E1F22] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 mb-2"
+              className="w-full px-3 py-2.5 rounded-lg bg-gray-950 border border-gray-800/60 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 mb-2"
               onKeyDown={(e) => e.key === 'Enter' && handleDelete()}
               autoFocus
             />
@@ -720,7 +720,7 @@ export default function ChatRoom() {
                   setDeletePassword('')
                   setDeleteError('')
                 }}
-                className="flex-1 py-2.5 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm font-medium transition-colors"
+                className="flex-1 py-2.5 rounded-lg bg-gray-800/60 text-gray-300 hover:bg-gray-700/60 text-sm font-medium transition-colors"
               >
                 취소
               </button>

@@ -349,10 +349,10 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
   const hasMultipleImages = imageUrls.length > 1
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#030303]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-gray-950">
       {/* 헤더 */}
-      <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
-        <button onClick={onBack} className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300">
+      <div className="px-3 py-2 border-b border-gray-800/50 flex items-center gap-3 shrink-0">
+        <button onClick={onBack} className="p-1.5 rounded-full hover:bg-gray-900/60 text-gray-300">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div
@@ -361,7 +361,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
         >
           {post.author_name[0]?.toUpperCase() || '?'}
         </div>
-        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">r/{post.author_name}</span>
+        <span className="text-sm font-medium text-gray-300">r/{post.author_name}</span>
         <span className="text-xs text-gray-500 ml-auto">
           <Eye className="w-3.5 h-3.5 inline mr-1" />{post.view_count}
         </span>
@@ -374,7 +374,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
           {isReported && !showReportedContent && (
             <div className="p-8 flex flex-col items-center">
               <AlertTriangle className="w-10 h-10 text-yellow-500 mb-3" />
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">신고된 게시물</h3>
+              <h3 className="text-lg font-bold text-white mb-1">신고된 게시물</h3>
               <p className="text-gray-500 text-sm mb-3">{post.report_count}건의 신고로 가려졌습니다.</p>
               <button
                 onClick={() => setShowReportedContent(true)}
@@ -400,22 +400,22 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                           setEditYoutubeUrl(post.youtube_url || '')
                           setShowEditModal(true)
                         }}
-                        className="px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                        className="px-2 py-0.5 text-xs bg-gray-800/60 text-gray-300 rounded hover:bg-gray-700/60"
                       >
                         수정
                       </button>
                       <button
                         onClick={handleDeletePost}
-                        className="px-2 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
+                        className="px-2 py-0.5 text-xs bg-red-900/30 text-red-400 rounded hover:bg-red-900/50"
                       >
                         삭제
                       </button>
                     </div>
                   )}
                 </div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{post.title}</h1>
+                <h1 className="text-xl font-bold text-gray-100 mb-2">{post.title}</h1>
                 {post.content && (
-                  <p className="text-gray-700 dark:text-gray-400 text-sm whitespace-pre-wrap mb-3">{post.content}</p>
+                  <p className="text-gray-400 text-sm whitespace-pre-wrap mb-3">{post.content}</p>
                 )}
               </div>
 
@@ -505,24 +505,24 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
               )}
 
               {/* 액션 버튼 */}
-              <div className="px-3 py-1.5 flex items-center gap-1 text-xs border-b border-gray-200 dark:border-gray-800">
+              <div className="px-3 py-1.5 flex items-center gap-1 text-xs border-b border-gray-800/50">
                 <div className={`flex items-center gap-0.5 rounded-full px-2 py-1 ${
                   post.userVote === 'upvote' ? 'bg-orange-500/10 text-orange-500'
                     : post.userVote === 'downvote' ? 'bg-blue-500/10 text-blue-500'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      : 'bg-gray-800/60 text-gray-300'
                 }`}>
                   <button className="p-1" onClick={() => handleVote('upvote')}><ArrowUp className="w-3.5 h-3.5" /></button>
                   <span className="font-bold min-w-[20px] text-center">{getScore(post.upvotes, post.downvotes)}</span>
                   <button className="p-1" onClick={() => handleVote('downvote')}><ArrowDown className="w-3.5 h-3.5" /></button>
                 </div>
                 <button
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 text-gray-300 hover:bg-gray-700/60"
                   onClick={handleShare}
                 >
                   <Share2 className="w-3.5 h-3.5" /><span>공유</span>
                 </button>
                 <button
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-600 hover:text-white"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 text-gray-300 hover:bg-red-600 hover:text-white"
                   onClick={() => { setReportReason(''); setShowReportModal(true) }}
                 >
                   <Flag className="w-3.5 h-3.5" /><span>신고</span>
@@ -531,13 +531,13 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
 
               {/* 댓글 입력 */}
               {nickname && (
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                <div className="px-4 py-3 border-b border-gray-800/50">
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     placeholder="댓글을 달아보세요"
                     rows={3}
-                    className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
                   />
                   <div className="flex justify-end gap-2 mt-2">
                     <button
@@ -568,7 +568,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                     return (
                       <div key={comment.id}>
                         {/* 부모 댓글 */}
-                        <div className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#0F0F0F] transition-colors border-b border-gray-100 dark:border-gray-900">
+                        <div className="px-4 py-3 hover:bg-gray-900/40 transition-colors border-b border-gray-800/30">
                           <div className="flex gap-2">
                             <div className="flex flex-col items-center gap-1">
                               <div
@@ -589,7 +589,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1 mb-1">
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{comment.author_name}</span>
+                                <span className="text-xs font-bold text-gray-300">{comment.author_name}</span>
                                 <span className="text-xs text-gray-500">•</span>
                                 <span className="text-xs text-gray-500">{timeAgo(comment.created_at)}</span>
                                 {isCollapsed && replies.length > 0 && (
@@ -598,12 +598,12 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                               </div>
                               {!isCollapsed && (
                                 <>
-                                  <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">{comment.content}</p>
+                                  <p className="text-gray-300 text-sm mb-2 leading-relaxed">{comment.content}</p>
                                   <div className="flex items-center gap-1">
                                     <div className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 ${
                                       comment.userVote === 'upvote' ? 'bg-orange-500/10 text-orange-500'
                                         : comment.userVote === 'downvote' ? 'bg-blue-500/10 text-blue-500'
-                                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                          : 'bg-gray-800/60 text-gray-300'
                                     }`}>
                                       <button className="p-0.5" onClick={() => handleCommentVote(comment.id, 'upvote')}>
                                         <ArrowUp className="w-3 h-3" />
@@ -616,7 +616,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                                       </button>
                                     </div>
                                     <button
-                                      className="text-[11px] font-bold text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                                      className="text-[11px] font-bold text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded-full hover:bg-gray-800/60"
                                       onClick={() => handleReply(comment.id, comment.author_name)}
                                     >
                                       <MessageSquare className="w-3 h-3 inline mr-1" />답글
@@ -640,10 +640,10 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                         {!isCollapsed && replies.map((reply) => (
                           <div key={reply.id} className="ml-8 relative">
                             <div className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none">
-                              <div className="absolute left-3 top-0 w-0.5 h-full bg-gray-300 dark:bg-gray-700"></div>
-                              <div className="absolute left-3 top-5 w-4 h-0.5 bg-gray-300 dark:bg-gray-700"></div>
+                              <div className="absolute left-3 top-0 w-0.5 h-full bg-gray-700"></div>
+                              <div className="absolute left-3 top-5 w-4 h-0.5 bg-gray-700"></div>
                             </div>
-                            <div className="pl-10 pr-4 py-3 hover:bg-gray-50 dark:hover:bg-[#0F0F0F] border-b border-gray-100 dark:border-gray-900">
+                            <div className="pl-10 pr-4 py-3 hover:bg-gray-900/40 border-b border-gray-800/30">
                               <div className="flex gap-2">
                                 <div
                                   className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
@@ -653,16 +653,16 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1 mb-1">
-                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{reply.author_name}</span>
+                                    <span className="text-xs font-bold text-gray-300">{reply.author_name}</span>
                                     <span className="text-xs text-gray-500">•</span>
                                     <span className="text-xs text-gray-500">{timeAgo(reply.created_at)}</span>
                                   </div>
-                                  <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">{reply.content}</p>
+                                  <p className="text-gray-300 text-sm mb-2 leading-relaxed">{reply.content}</p>
                                   <div className="flex items-center gap-1">
                                     <div className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 ${
                                       reply.userVote === 'upvote' ? 'bg-orange-500/10 text-orange-500'
                                         : reply.userVote === 'downvote' ? 'bg-blue-500/10 text-blue-500'
-                                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                          : 'bg-gray-800/60 text-gray-300'
                                     }`}>
                                       <button className="p-0.5" onClick={() => handleCommentVote(reply.id, 'upvote')}>
                                         <ArrowUp className="w-3 h-3" />
@@ -688,7 +688,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
 
                         {/* 답글 입력 아코디언 */}
                         {!isCollapsed && expandedCommentId === comment.id && nickname && (
-                          <div className="ml-8 pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#0A0A0A] relative">
+                          <div className="ml-8 pl-10 pr-4 py-3 bg-gray-900/40 relative">
                             <div className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none">
                               <div className="absolute left-3 top-0 w-0.5 h-full bg-blue-500"></div>
                               <div className="absolute left-3 top-5 w-4 h-0.5 bg-blue-500"></div>
@@ -699,7 +699,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                               onChange={(e) => setNewComment(e.target.value)}
                               placeholder="답글을 입력하세요..."
                               rows={2}
-                              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                              className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
                             />
                             <div className="flex justify-end gap-2 mt-2">
                               <button
@@ -738,9 +738,9 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
       {/* ── 수정 모달 ── */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowEditModal(false)}>
-          <div className="bg-white dark:bg-[#0B0B0B] border border-gray-200 dark:border-[#1A1A1B] rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 pt-5 pb-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">게시물 수정</h3>
+          <div className="bg-gray-900 border border-gray-800/60 rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 border-b border-gray-800/50 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">게시물 수정</h3>
               <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
@@ -748,23 +748,23 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 placeholder="제목"
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm"
+                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm"
               />
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 placeholder="내용"
                 rows={4}
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm resize-none"
+                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm resize-none"
               />
               <input
                 value={editYoutubeUrl}
                 onChange={(e) => setEditYoutubeUrl(e.target.value)}
                 placeholder="유튜브 URL (선택)"
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm"
+                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm"
               />
               <div className="flex gap-3">
-                <button onClick={() => setShowEditModal(false)} className="flex-1 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm">취소</button>
+                <button onClick={() => setShowEditModal(false)} className="flex-1 py-2 rounded-lg bg-gray-800/60 text-gray-300 text-sm">취소</button>
                 <button
                   onClick={handleEditPost}
                   disabled={isSubmitting || !editTitle.trim()}
@@ -781,9 +781,9 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
       {/* ── 신고 모달 ── */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
-          <div className="bg-white dark:bg-[#0B0B0B] border border-gray-200 dark:border-[#1A1A1B] rounded-xl w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gray-900 border border-gray-800/60 rounded-xl w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 pt-5 pb-3">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">게시물 신고</h3>
+              <h3 className="text-lg font-bold text-white mb-1">게시물 신고</h3>
               <p className="text-gray-500 text-xs">10건 이상 신고 시 자동으로 가려집니다.</p>
             </div>
             <div className="px-6 py-3 space-y-2">
@@ -792,7 +792,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                   key={r}
                   onClick={() => setReportReason(r)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    reportReason === r ? 'bg-red-600/20 text-red-400 border border-red-600/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                    reportReason === r ? 'bg-red-600/20 text-red-400 border border-red-600/30' : 'hover:bg-gray-800/60 text-gray-300'
                   }`}
                 >
                   {r}
@@ -802,12 +802,12 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
                 placeholder="신고 사유를 직접 입력..."
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm resize-none"
+                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm resize-none"
                 rows={3}
               />
             </div>
             <div className="px-6 pb-5 flex gap-2">
-              <button onClick={() => setShowReportModal(false)} disabled={isReporting} className="flex-1 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm">취소</button>
+              <button onClick={() => setShowReportModal(false)} disabled={isReporting} className="flex-1 py-2 rounded-lg bg-gray-800/60 text-gray-300 text-sm">취소</button>
               <button onClick={submitReport} disabled={isReporting || !reportReason.trim()} className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 text-sm">
                 {isReporting ? '신고 중...' : '신고하기'}
               </button>

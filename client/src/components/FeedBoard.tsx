@@ -76,8 +76,8 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
   const [hasMore, setHasMore] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
 
-  // 게시물 작성 모달
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  // 게시물 작성 (인라인)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [newMedia, setNewMedia] = useState<File[]>([])
@@ -281,7 +281,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
       })
 
       if (res.ok) {
-        setShowCreateModal(false)
+        setShowCreateForm(false)
         setNewTitle('')
         setNewContent('')
         setNewMedia([])
@@ -304,17 +304,17 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
   const getScore = (up: number, down: number) => up - down
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#030303]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-gray-950">
       {/* 정렬 탭 */}
-      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2 shrink-0">
+      <div className="px-4 py-2 border-b border-gray-800/50 flex items-center gap-2 shrink-0">
         {(['latest', 'popular', 'trending'] as const).map((s) => (
           <button
             key={s}
             onClick={() => setSortBy(s)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               sortBy === s
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                : 'bg-gray-900/60 text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border border-gray-800/60'
             }`}
           >
             {s === 'latest' ? '최신순' : s === 'popular' ? '인기순' : '트렌딩'}
@@ -325,6 +325,147 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
       {/* 게시물 목록 */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-2">
+
+          {/* ── 인라인 게시물 작성 폼 ── */}
+          {nickname && (
+            <div className="mb-3">
+              {!showCreateForm ? (
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/60 border border-gray-800/60 hover:border-gray-700 text-gray-400 text-sm transition-colors"
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                    style={{ backgroundColor: nickColor(nickname) }}
+                  >
+                    {nickname[0]?.toUpperCase() || '?'}
+                  </div>
+                  <span>새 게시물을 작성해보세요...</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Image className="w-4 h-4 text-gray-500" />
+                    <Youtube className="w-4 h-4 text-gray-500" />
+                  </div>
+                </button>
+              ) : (
+                <div className="rounded-xl bg-gray-900/60 border border-gray-800/60 overflow-hidden">
+                  <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white">새 게시물 작성</h3>
+                    <button
+                      onClick={() => {
+                        setShowCreateForm(false)
+                        setNewTitle('')
+                        setNewContent('')
+                        setNewMedia([])
+                        setMediaPreviews([])
+                        setNewYoutubeUrl('')
+                      }}
+                      className="text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="px-4 pb-4 space-y-3">
+                    <input
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="제목 *"
+                      maxLength={200}
+                      autoFocus
+                      className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+                    <textarea
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="내용을 입력하세요 (선택사항)"
+                      maxLength={2000}
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                    />
+
+                    {/* 유튜브 URL */}
+                    <input
+                      value={newYoutubeUrl}
+                      onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                      placeholder="유튜브 링크 (선택)"
+                      className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+
+                    {/* 미디어 업로드 */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => document.getElementById('feed-media-input')?.click()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 text-xs transition-colors"
+                      >
+                        <Image className="w-3.5 h-3.5" />
+                        파일 첨부
+                      </button>
+                      <input
+                        id="feed-media-input"
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={handleMediaSelect}
+                        className="hidden"
+                      />
+                      {newMedia.length > 0 && (
+                        <span className="text-xs text-gray-500">{newMedia.length}개 파일</span>
+                      )}
+                    </div>
+
+                    {/* 미디어 프리뷰 */}
+                    {mediaPreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {mediaPreviews.map((preview, idx) => (
+                          <div key={idx} className="relative">
+                            {newMedia[idx]?.type.startsWith('video') ? (
+                              <video src={preview} className="w-full h-20 object-cover rounded-lg" />
+                            ) : (
+                              <img src={preview} alt="" className="w-full h-20 object-cover rounded-lg" />
+                            )}
+                            <span className="absolute top-0.5 right-0.5 bg-black/60 text-white text-[9px] px-1 rounded">
+                              {idx + 1}
+                            </span>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => { setNewMedia([]); setMediaPreviews([]) }}
+                          className="flex items-center justify-center h-20 rounded-lg border border-dashed border-red-500/50 text-red-400 text-xs hover:bg-red-900/20"
+                        >
+                          전체 삭제
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 액션 버튼 */}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          setShowCreateForm(false)
+                          setNewTitle('')
+                          setNewContent('')
+                          setNewMedia([])
+                          setMediaPreviews([])
+                          setNewYoutubeUrl('')
+                        }}
+                        disabled={isSubmitting}
+                        className="px-4 py-1.5 rounded-lg bg-gray-800/60 text-gray-300 hover:bg-gray-700/60 text-xs font-medium"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleCreatePost}
+                        disabled={isSubmitting || !newTitle.trim()}
+                        className="px-5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 text-xs font-medium"
+                      >
+                        {isSubmitting ? '작성 중...' : '게시'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {posts.map((post) => {
             const isReported = (post.report_count || 0) >= 10
             const isVisible = showReportedContent[post.id] || false
@@ -341,7 +482,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
             return (
               <div
                 key={post.id}
-                className="bg-white dark:bg-[#0B0B0B] border-b border-gray-200 dark:border-[#1A1A1B] hover:bg-gray-50 dark:hover:bg-[#0F0F0F] transition-colors cursor-pointer relative"
+                className="bg-gray-900/60 border border-gray-800/60 rounded-xl mb-2 hover:border-gray-700 transition-colors cursor-pointer relative"
                 onClick={() => (!isReported || isVisible) && onPostClick?.(post.id)}
               >
                 {/* 신고된 게시물 오버레이 */}
@@ -375,10 +516,10 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                       {post.author_name[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="flex items-center gap-1.5 flex-1">
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                      <span className="text-xs font-medium text-gray-400">
                         r/{post.author_name || '익명'}
                       </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-600">•</span>
+                      <span className="text-xs text-gray-600">•</span>
                       <span className="text-xs text-gray-500">{timeAgo(post.created_at)}</span>
                     </div>
                     <button
@@ -390,13 +531,13 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                   </div>
 
                   {/* 제목 */}
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1 line-clamp-2">
+                  <h3 className="text-base font-semibold text-gray-100 mb-1 line-clamp-2">
                     {post.title}
                   </h3>
 
                   {/* 내용 */}
                   {post.content && (
-                    <p className="text-gray-700 dark:text-gray-400 text-sm mb-2 line-clamp-3">
+                    <p className="text-gray-400 text-sm mb-2 line-clamp-3">
                       {post.content}
                     </p>
                   )}
@@ -526,7 +667,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                         ? 'bg-orange-500/10 text-orange-500'
                         : post.userVote === 'downvote'
                           ? 'bg-blue-500/10 text-blue-500'
-                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          : 'bg-gray-800/60 text-gray-300'
                     }`}
                   >
                     <button
@@ -548,7 +689,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
 
                   {/* 댓글 */}
                   <button
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 text-gray-300 hover:bg-gray-700/60"
                     onClick={(e) => { e.stopPropagation(); onPostClick?.(post.id) }}
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -557,7 +698,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
 
                   {/* 공유 */}
                   <button
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 text-gray-300 hover:bg-gray-700/60"
                     onClick={(e) => handleShare(post.id, e)}
                   >
                     <Share2 className="w-3.5 h-3.5" />
@@ -596,153 +737,16 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         </div>
       </div>
 
-      {/* 플로팅 작성 버튼 */}
-      {nickname && (
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="absolute bottom-4 right-4 w-12 h-12 rounded-full shadow-2xl bg-gradient-to-br from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 flex items-center justify-center z-30 border-2 border-black"
-        >
-          <Plus className="w-5 h-5 text-white" />
-        </button>
-      )}
-
-      {/* ── 게시물 작성 모달 ── */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
-          <div
-            className="bg-white dark:bg-[#0B0B0B] border border-gray-200 dark:border-[#1A1A1B] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 pt-5 pb-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">새 게시물 작성</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-200">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* 제목 */}
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1.5 block">제목 *</label>
-                <input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="게시물 제목을 입력하세요"
-                  maxLength={200}
-                  className="w-full px-3 py-2.5 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* 내용 */}
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1.5 block">내용</label>
-                <textarea
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="게시물 내용을 입력하세요 (선택사항)"
-                  maxLength={2000}
-                  rows={4}
-                  className="w-full px-3 py-2.5 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
-                />
-              </div>
-
-              {/* 유튜브 URL */}
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1.5 block flex items-center gap-1">
-                  <Youtube className="w-4 h-4 text-red-500" />
-                  유튜브 링크 (선택)
-                </label>
-                <input
-                  value={newYoutubeUrl}
-                  onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-3 py-2.5 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* 미디어 업로드 */}
-              <div>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1.5 block">
-                  이미지 / 동영상 (최대 10개, 각 50MB)
-                </label>
-                <div
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50 dark:bg-gray-800/50"
-                  onClick={() => document.getElementById('feed-media-input')?.click()}
-                >
-                  <Image className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">클릭하여 파일 선택</p>
-                </div>
-                <input
-                  id="feed-media-input"
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  onChange={handleMediaSelect}
-                  className="hidden"
-                />
-
-                {newMedia.length > 0 && (
-                  <div className="mt-2 text-xs text-gray-400">
-                    {newMedia.length}개 파일 선택됨
-                  </div>
-                )}
-
-                {mediaPreviews.length > 0 && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {mediaPreviews.map((preview, idx) => (
-                      <div key={idx} className="relative">
-                        {newMedia[idx]?.type.startsWith('video') ? (
-                          <video src={preview} className="w-full h-32 object-cover rounded-lg" controls />
-                        ) : (
-                          <img src={preview} alt="" className="w-full h-32 object-cover rounded-lg" />
-                        )}
-                        <span className="absolute top-1 right-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
-                          {idx + 1}/{mediaPreviews.length}
-                        </span>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => { setNewMedia([]); setMediaPreviews([]) }}
-                      className="col-span-2 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
-                    >
-                      모든 파일 제거
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 버튼 */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium"
-                >
-                  취소
-                </button>
-                <button
-                  onClick={handleCreatePost}
-                  disabled={isSubmitting || !newTitle.trim()}
-                  className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 text-sm font-medium"
-                >
-                  {isSubmitting ? '작성 중...' : '게시'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── 신고 모달 ── */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
           <div
-            className="bg-white dark:bg-[#0B0B0B] border border-gray-200 dark:border-[#1A1A1B] rounded-xl w-full max-w-sm shadow-2xl"
+            className="bg-gray-900 border border-gray-800/60 rounded-xl w-full max-w-sm shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 pt-5 pb-3">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">게시물 신고</h3>
-              <p className="text-gray-500 dark:text-gray-400 text-xs">
+              <h3 className="text-lg font-bold text-white mb-1">게시물 신고</h3>
+              <p className="text-gray-400 text-xs">
                 10건 이상 신고 시 자동으로 가려집니다.
               </p>
             </div>
@@ -754,7 +758,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                     reportReason === r
                       ? 'bg-red-600/20 text-red-400 border border-red-600/30'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      : 'hover:bg-gray-800/60 text-gray-300'
                   }`}
                 >
                   {r}
@@ -764,7 +768,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
                 placeholder="신고 사유를 직접 입력..."
-                className="w-full px-3 py-2.5 rounded-lg bg-gray-100 dark:bg-[#1A1A1B] border border-gray-300 dark:border-[#272729] text-gray-900 dark:text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+                className="w-full px-3 py-2.5 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
                 rows={3}
               />
             </div>
@@ -772,7 +776,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
               <button
                 onClick={() => setShowReportModal(false)}
                 disabled={isReporting}
-                className="flex-1 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm"
+                className="flex-1 py-2 rounded-lg bg-gray-800/60 text-gray-300 text-sm"
               >
                 취소
               </button>
