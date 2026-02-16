@@ -439,7 +439,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-950">
       {/* 헤더 */}
       <div className="px-3 py-2 border-b border-gray-800/50 flex items-center gap-3 shrink-0">
-        <button onClick={onBack} className="p-1.5 rounded-full hover:bg-gray-900/60 text-gray-300">
+        <button onClick={isEditing ? cancelEditing : onBack} className="p-1.5 rounded-full hover:bg-gray-900/60 text-gray-300">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div
@@ -448,10 +448,29 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
         >
           {post.author_name[0]?.toUpperCase() || '?'}
         </div>
-        <span className="text-sm font-medium text-gray-300">r/{post.author_name}</span>
-        <span className="text-xs text-gray-500 ml-auto">
-          <Eye className="w-3.5 h-3.5 inline mr-1" />{post.view_count}
+        <span className="text-sm font-medium text-gray-300">
+          {isEditing ? '게시물 수정' : `r/${post.author_name}`}
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <button onClick={cancelEditing} className="px-3 py-1 rounded-lg bg-gray-800/60 text-gray-300 text-xs hover:bg-gray-700/60">
+                취소
+              </button>
+              <button
+                onClick={handleEditPost}
+                disabled={isSubmitting || !editTitle.trim()}
+                className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-40"
+              >
+                {isSubmitting ? '저장 중...' : '저장'}
+              </button>
+            </>
+          ) : (
+            <span className="text-xs text-gray-500">
+              <Eye className="w-3.5 h-3.5 inline mr-1" />{post.view_count}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 본문 스크롤 영역 */}
@@ -538,19 +557,6 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                     )}
                   </div>
 
-                  {/* 수정 버튼 */}
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={cancelEditing} className="px-4 py-1.5 rounded-lg bg-gray-800/60 text-gray-300 text-sm hover:bg-gray-700/60">
-                      취소
-                    </button>
-                    <button
-                      onClick={handleEditPost}
-                      disabled={isSubmitting || !editTitle.trim()}
-                      className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-40"
-                    >
-                      {isSubmitting ? '저장 중...' : '저장'}
-                    </button>
-                  </div>
                 </div>
               ) : (
                 <>
