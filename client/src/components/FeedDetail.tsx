@@ -330,6 +330,11 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     )
   }
 
+  // 이미지 라이트박스 (hooks는 조건문 위에 위치해야 함)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
   if (!post) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center">
@@ -340,11 +345,6 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
       </div>
     )
   }
-
-  // 이미지 라이트박스
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImages, setLightboxImages] = useState<string[]>([])
-  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   const isReported = (post.report_count || 0) >= 10
   const imageUrls =
