@@ -889,33 +889,32 @@ const ImageEditor = () => {
     const lineH = textAreaHeight / lines.length
     const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
 
-    // ── 원본 텍스트 폭에 맞춰 수평 스케일링 ──
-    // Canvas 폰트(Malgun Gothic 등)는 원본 이미지 폰트보다 자간이 넓을 수 있음
-    // 원본 textWidth가 측정되어 있으면, 렌더링 폭을 비교해 수평으로 압축/확장
-    let scaleX = 1
-    if (textMeasure && textMeasure.textWidth > 0) {
-      const renderedW = ctx.measureText(lines[0] || '').width
-      if (renderedW > 0) {
-        scaleX = textMeasure.textWidth / renderedW
-        // 너무 극단적인 스케일은 방지 (0.7 ~ 1.3 범위)
-        scaleX = Math.max(0.7, Math.min(1.3, scaleX))
-      }
-    }
-
     for (let i = 0; i < lines.length; i++) {
       const slotTop = textAreaTop + i * lineH
       const baselineY = slotTop + (lineH + glyphAscent - glyphDescent) / 2
       const drawX = srcX + padX
+      const line = lines[i]
 
-      if (Math.abs(scaleX - 1) > 0.01) {
-        // 수평 스케일링 적용: 글자 시작점 기준으로 가로만 압축
-        ctx.save()
-        ctx.translate(drawX, 0)
-        ctx.scale(scaleX, 1)
-        ctx.fillText(lines[i], 0, baselineY)
-        ctx.restore()
+      // ── 글자별 간격 조절로 선택 영역에 자연스럽게 맞춤 ──
+      // Canvas 폰트의 기본 자간이 원본보다 넓을 수 있으므로,
+      // 선택 영역 폭에 맞춰 글자 간 여백만 줄임 (글자 형태는 변형 없음)
+      const targetW = srcW - padX * 2
+      const renderedW = ctx.measureText(line).width
+
+      if (line.length > 1 && renderedW > targetW) {
+        // 글자별로 그려서 간격만 줄임
+        const chars = [...line]  // 한글 유니코드 안전 분리
+        const charWidths = chars.map(ch => ctx.measureText(ch).width)
+        const totalCharW = charWidths.reduce((s, w) => s + w, 0)
+        // 줄여야 할 여백 = (렌더링폭 - 타겟폭) / (글자수 - 1)
+        const spacingReduce = (renderedW - targetW) / (chars.length - 1)
+        let x = drawX
+        for (let c = 0; c < chars.length; c++) {
+          ctx.fillText(chars[c], x, baselineY)
+          x += charWidths[c] - spacingReduce
+        }
       } else {
-        ctx.fillText(lines[i], drawX, baselineY)
+        ctx.fillText(line, drawX, baselineY)
       }
     }
 
