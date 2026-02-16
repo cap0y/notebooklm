@@ -322,6 +322,11 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
 
   const getScore = (u: number, d: number) => u - d
 
+  // 이미지 라이트박스 (hooks는 모든 조건부 return 위에 위치해야 함)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -329,11 +334,6 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
       </div>
     )
   }
-
-  // 이미지 라이트박스 (hooks는 조건문 위에 위치해야 함)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImages, setLightboxImages] = useState<string[]>([])
-  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   if (!post) {
     return (
