@@ -828,7 +828,7 @@ const ImageEditor = () => {
     fontSize = Math.max(10, Math.min(fontSize, 800))
     ctx.font = `${weight} ${fontSize}px ${fontFamily}`
     ctx.fillStyle = textColor
-    ctx.textBaseline = 'middle'
+    ctx.textBaseline = 'alphabetic' // 'middle'은 한글에서 시각적 중심이 안 맞으므로 alphabetic 사용
 
     const lines = rawLines
 
@@ -840,7 +840,6 @@ const ImageEditor = () => {
     if (maxLW > srcW) {
       const extraW = Math.ceil(maxLW - srcW + 4)
       const extraX = srcX + srcW
-      // 초과 영역도 strip-copy로 배경 복원
       const extraTopStrip = ctx.getImageData(Math.min(extraX, editCanvas.width - 1), topStripY, Math.min(extraW, editCanvas.width - extraX), 1)
       const extraBottomStrip = ctx.getImageData(Math.min(extraX, editCanvas.width - 1), bottomStripY, Math.min(extraW, editCanvas.width - extraX), 1)
       const actualExtraW = Math.min(extraW, editCanvas.width - extraX)
@@ -861,7 +860,7 @@ const ImageEditor = () => {
     }
     ctx.fillStyle = textColor
 
-    // ── 원본 텍스트 위치 기반 정렬 ──
+    // ── 원본 텍스트 위치 기반 정렬 (alphabetic baseline 사용) ──
     // textMeasure가 있으면 원본 텍스트의 정확한 위치(textTop, textHeight)를 사용
     // 없으면 선택 영역 전체를 기준으로 배치
     let textAreaTop: number
@@ -875,10 +874,21 @@ const ImageEditor = () => {
       textAreaHeight = srcH
     }
 
+    // alphabetic baseline: 실제 글리프의 ascent/descent를 측정하여
+    // 각 줄 슬롯 안에서 시각적으로 정확히 중앙에 오도록 baseline 위치를 계산
+    const testSample = lines[0] || '한글테스트'
+    const glyphMetrics = ctx.measureText(testSample)
+    const glyphAscent = glyphMetrics.actualBoundingBoxAscent
+    const glyphDescent = glyphMetrics.actualBoundingBoxDescent
+
     const lineH = textAreaHeight / lines.length
     const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], srcX + padX, textAreaTop + i * lineH + lineH / 2)
+      const slotTop = textAreaTop + i * lineH
+      // baseline = slotTop + (슬롯높이 + ascent - descent) / 2
+      // → 글리프의 시각적 중앙이 슬롯 중앙에 오도록 배치
+      const baselineY = slotTop + (lineH + glyphAscent - glyphDescent) / 2
+      ctx.fillText(lines[i], srcX + padX, baselineY)
     }
 
     setEditVersion((v) => v + 1)
