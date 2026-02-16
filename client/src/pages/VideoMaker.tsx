@@ -46,7 +46,7 @@ const VideoMaker: React.FC = () => {
   const [includeSubtitles, setIncludeSubtitles] = useState<boolean>(true)
 
   // 슬라이드 간 딜레이 설정
-  const [slideDelayEnabled, setSlideDelayEnabled] = useState(false)
+  const [slideDelayEnabled, setSlideDelayEnabled] = useState(true)
   const [slideDelaySec, setSlideDelaySec] = useState(2)
 
   const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Zephyr)
