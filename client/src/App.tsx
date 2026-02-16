@@ -1,4 +1,4 @@
-import React, { useEffect, lazy, Suspense } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
@@ -42,6 +42,15 @@ function PageManager() {
   const location = useLocation()
   const navigate = useNavigate()
   const path = location.pathname
+
+  // lazy 로드 페이지: 최초 방문 후 마운트 유지 (display:none 방식)
+  const [videoMakerLoaded, setVideoMakerLoaded] = useState(false)
+  const [chatRoomLoaded, setChatRoomLoaded] = useState(false)
+
+  useEffect(() => {
+    if (path === '/video-maker') setVideoMakerLoaded(true)
+    if (path === '/chat') setChatRoomLoaded(true)
+  }, [path])
 
   // 유효하지 않은 경로 → 홈으로 리다이렉트
   useEffect(() => {
@@ -89,9 +98,12 @@ function PageManager() {
         </div>
       )}
 
-      {/* 채팅방 페이지 — lazy 로드 */}
-      {path === '/chat' && (
-        <div className="flex-1 flex-col min-h-0 overflow-hidden" style={{ display: 'flex' }}>
+      {/* 채팅방 페이지 — 최초 방문 후 마운트 유지 */}
+      {chatRoomLoaded && (
+        <div
+          className="flex-1 flex-col min-h-0 overflow-hidden"
+          style={{ display: path === '/chat' ? 'flex' : 'none' }}
+        >
           <Suspense
             fallback={
               <div className="flex-1 flex items-center justify-center">
@@ -104,9 +116,12 @@ function PageManager() {
         </div>
       )}
 
-      {/* 동영상 만들기 페이지 — lazy 로드 */}
-      {path === '/video-maker' && (
-        <div className="flex-1 flex-col min-h-0 overflow-hidden" style={{ display: 'flex' }}>
+      {/* 동영상 만들기 페이지 — 최초 방문 후 마운트 유지 */}
+      {videoMakerLoaded && (
+        <div
+          className="flex-1 flex-col min-h-0 overflow-hidden"
+          style={{ display: path === '/video-maker' ? 'flex' : 'none' }}
+        >
           <Suspense
             fallback={
               <div className="flex-1 flex items-center justify-center">
