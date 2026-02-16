@@ -226,24 +226,29 @@ router.put('/posts/:id', async (req: Request, res: Response) => {
 
     // base64 미디어 처리 (이미지만, 개당 10MB 이하)
     const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37
-    if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
-      const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
-      if (oversized) {
-        return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
-      }
-      const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
-      if (nonImage) {
-        return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
-      }
-
-      if (mediaBase64.length === 1) {
-        params.push(mediaBase64[0])
-        params.push('image')
-        updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}, media_urls = NULL`
+    if (Array.isArray(mediaBase64)) {
+      if (mediaBase64.length === 0) {
+        // 이미지 모두 삭제
+        updateFields += `, media_url = NULL, media_urls = NULL, media_type = NULL`
       } else {
-        params.push(mediaBase64)
-        params.push('image')
-        updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}, media_url = NULL`
+        const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
+        if (oversized) {
+          return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
+        }
+        const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
+        if (nonImage) {
+          return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
+        }
+
+        if (mediaBase64.length === 1) {
+          params.push(mediaBase64[0])
+          params.push('image')
+          updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}, media_urls = NULL`
+        } else {
+          params.push(mediaBase64)
+          params.push('image')
+          updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}, media_url = NULL`
+        }
       }
     }
 

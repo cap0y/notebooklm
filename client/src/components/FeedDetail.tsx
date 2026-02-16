@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Share2, Flag,
   ChevronLeft, ChevronRight, Loader2, Eye, AlertTriangle,
-  Trash2, X,
+  Trash2, X, ImagePlus,
 } from 'lucide-react'
 import EmojiPicker from './EmojiPicker'
 import ImageLightbox from './ImageLightbox'
@@ -101,11 +101,14 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
   const [isReporting, setIsReporting] = useState(false)
   const [showReportedContent, setShowReportedContent] = useState(false)
 
-  // 수정 모달
-  const [showEditModal, setShowEditModal] = useState(false)
+  // 인라인 수정
+  const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
   const [editYoutubeUrl, setEditYoutubeUrl] = useState('')
+  const [editExistingImages, setEditExistingImages] = useState<string[]>([]) // 기존 이미지 유지 목록
+  const [editNewMedia, setEditNewMedia] = useState<File[]>([])               // 새로 추가할 이미지 파일
+  const [editNewPreviews, setEditNewPreviews] = useState<string[]>([])       // 새 이미지 미리보기
 
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -254,11 +257,86 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     navigator.clipboard.writeText(url).then(() => alert('주소가 복사되었습니다!'))
   }
 
-  // ── 게시글 수정 ──
+  // ── 수정 시작 ──
+  const startEditing = () => {
+    if (!post) return
+    setEditTitle(post.title)
+    setEditContent(post.content || '')
+    setEditYoutubeUrl(post.youtube_url || '')
+    // 기존 이미지 목록 로드
+    const existing =
+      post.media_urls && post.media_urls.length > 0
+        ? [...post.media_urls]
+        : post.media_url && post.media_type === 'image'
+          ? [post.media_url]
+          : []
+    setEditExistingImages(existing)
+    setEditNewMedia([])
+    setEditNewPreviews([])
+    setIsEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setIsEditing(false)
+    setEditNewMedia([])
+    setEditNewPreviews([])
+  }
+
+  // ── 수정용 이미지 선택 ──
+  const handleEditMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    const totalCount = editExistingImages.length + editNewPreviews.length + files.length
+    if (totalCount > 10) { alert('최대 10개의 이미지만 첨부할 수 있습니다.'); return }
+    const nonImage = files.filter((f) => !f.type.startsWith('image/'))
+    if (nonImage.length > 0) { alert('이미지 파일만 첨부할 수 있습니다.'); return }
+    const over = files.filter((f) => f.size > 10 * 1024 * 1024)
+    if (over.length > 0) { alert('각 파일 크기는 10MB를 초과할 수 없습니다.'); return }
+
+    setEditNewMedia((prev) => [...prev, ...files])
+    files.forEach((file) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setEditNewPreviews((prev) => [...prev, reader.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  // ── 기존 이미지 삭제 ──
+  const removeExistingImage = (idx: number) => {
+    setEditExistingImages((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  // ── 새 이미지 삭제 ──
+  const removeNewImage = (idx: number) => {
+    setEditNewMedia((prev) => prev.filter((_, i) => i !== idx))
+    setEditNewPreviews((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  // ── 게시글 수정 저장 ──
   const handleEditPost = async () => {
     if (!editTitle.trim()) return
     setIsSubmitting(true)
     try {
+      const body: Record<string, any> = {
+        title: editTitle,
+        content: editContent,
+        youtubeUrl: editYoutubeUrl,
+      }
+
+      // 모든 이미지(기존 + 신규)를 base64 배열로 전송
+      const allImages = [...editExistingImages, ...editNewPreviews]
+      if (allImages.length > 0) {
+        body.mediaBase64 = allImages
+        body.mediaType = 'image'
+      } else {
+        // 이미지를 모두 삭제한 경우
+        body.mediaBase64 = []
+        body.mediaType = null
+      }
+
       const res = await fetch(`/api/feed/posts/${postId}`, {
         method: 'PUT',
         headers: {
@@ -266,10 +344,12 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
           'X-Author-Name': nickname,
           'X-Author-Password': password,
         },
-        body: JSON.stringify({ title: editTitle, content: editContent, youtubeUrl: editYoutubeUrl }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
-        setShowEditModal(false)
+        setIsEditing(false)
+        setEditNewMedia([])
+        setEditNewPreviews([])
         loadPost()
       } else {
         const err = await res.json()
@@ -394,136 +474,213 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
 
           {(!isReported || showReportedContent) && (
             <>
-              {/* 제목 & 내용 */}
-              <div className="px-4 pt-4 pb-2">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                  <span>{timeAgo(post.created_at)}</span>
-                  {post.author_name === nickname && (
-                    <div className="ml-auto flex gap-1">
-                      <button
-                        onClick={() => {
-                          setEditTitle(post.title)
-                          setEditContent(post.content || '')
-                          setEditYoutubeUrl(post.youtube_url || '')
-                          setShowEditModal(true)
-                        }}
-                        className="px-2 py-0.5 text-xs bg-gray-800/60 text-gray-300 rounded hover:bg-gray-700/60"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={handleDeletePost}
-                        className="px-2 py-0.5 text-xs bg-red-900/30 text-red-400 rounded hover:bg-red-900/50"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <h1 className="text-xl font-bold text-gray-100 mb-2">{post.title}</h1>
-                {post.content && (
-                  <p className="text-gray-400 text-sm whitespace-pre-wrap mb-3">{post.content}</p>
-                )}
-              </div>
+              {/* ── 수정 모드 ── */}
+              {isEditing ? (
+                <div className="px-4 pt-4 pb-3 space-y-3">
+                  <input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="제목"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-800/60 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                  />
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    placeholder="내용"
+                    rows={5}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-800/60 text-white text-sm resize-none focus:outline-none focus:border-blue-500/50"
+                  />
+                  <input
+                    value={editYoutubeUrl}
+                    onChange={(e) => setEditYoutubeUrl(e.target.value)}
+                    placeholder="유튜브 URL (선택)"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-800/60 text-white text-sm focus:outline-none focus:border-blue-500/50"
+                  />
 
-              {/* 이미지 미디어 */}
-              {imageUrls.length > 0 && (
-                <div className="px-4 mb-3">
-                  {hasMultipleImages ? (
-                    <div className="relative group bg-black/60 rounded-xl overflow-hidden">
-                      <div
-                        id={`detail-slider-${post.id}`}
-                        className="overflow-x-auto overflow-y-hidden scrollbar-hide snap-x snap-mandatory scroll-smooth"
-                        onScroll={(e) => {
-                          const el = e.currentTarget
-                          setCurrentSlideIndex(Math.round(el.scrollLeft / el.offsetWidth))
-                        }}
-                      >
-                        <div className="flex h-[400px]">
-                          {imageUrls.map((url, idx) => (
-                            <div
-                              key={idx}
-                              className="flex-shrink-0 w-full h-full snap-center relative cursor-pointer hover:opacity-95 transition-opacity"
-                              onClick={() => {
-                                setLightboxImages(imageUrls)
-                                setLightboxIndex(idx)
-                                setLightboxOpen(true)
-                              }}
+                  {/* 이미지 편집 영역 */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-gray-400">첨부 이미지</span>
+                      <label className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-800/60 text-gray-300 rounded-lg hover:bg-gray-700/60 cursor-pointer">
+                        <ImagePlus className="w-3.5 h-3.5" />
+                        <span>그림 추가</span>
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleEditMediaSelect} />
+                      </label>
+                    </div>
+                    {(editExistingImages.length > 0 || editNewPreviews.length > 0) && (
+                      <div className="flex flex-wrap gap-2">
+                        {/* 기존 이미지 */}
+                        {editExistingImages.map((url, idx) => (
+                          <div key={`existing-${idx}`} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-gray-700">
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                            <button
+                              onClick={() => removeExistingImage(idx)}
+                              className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-600/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                              <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${url})` }} />
-                              <img src={url} alt={`${idx + 1}`} loading="lazy" className="relative w-full h-full object-contain z-10" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const el = document.getElementById(`detail-slider-${post.id}`)
-                          el?.scrollBy({ left: -(el.offsetWidth), behavior: 'smooth' })
-                        }}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 z-20"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          const el = document.getElementById(`detail-slider-${post.id}`)
-                          el?.scrollBy({ left: el.offsetWidth, behavior: 'smooth' })
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 z-20"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-20">
-                        {imageUrls.map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              const el = document.getElementById(`detail-slider-${post.id}`)
-                              el?.scrollTo({ left: el.offsetWidth * idx, behavior: 'smooth' })
-                            }}
-                            className={`w-1.5 h-1.5 rounded-full transition-all ${currentSlideIndex === idx ? 'bg-white w-4' : 'bg-white/50'}`}
-                          />
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                        {/* 새로 추가한 이미지 */}
+                        {editNewPreviews.map((url, idx) => (
+                          <div key={`new-${idx}`} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-blue-600/50">
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                            <div className="absolute top-0.5 left-0.5 px-1 text-[9px] bg-blue-600/80 text-white rounded">NEW</div>
+                            <button
+                              onClick={() => removeNewImage(idx)}
+                              className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-600/90 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  ) : (
-                    <div
-                      className="relative bg-black/60 rounded-xl overflow-hidden h-[400px] cursor-pointer hover:opacity-95 transition-opacity"
-                      onClick={() => {
-                        setLightboxImages(imageUrls)
-                        setLightboxIndex(0)
-                        setLightboxOpen(true)
-                      }}
+                    )}
+                  </div>
+
+                  {/* 수정 버튼 */}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={cancelEditing} className="px-4 py-1.5 rounded-lg bg-gray-800/60 text-gray-300 text-sm hover:bg-gray-700/60">
+                      취소
+                    </button>
+                    <button
+                      onClick={handleEditPost}
+                      disabled={isSubmitting || !editTitle.trim()}
+                      className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-40"
                     >
-                      <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${imageUrls[0]})` }} />
-                      <img src={imageUrls[0]} alt={post.title} loading="lazy" className="relative w-full h-full object-contain z-10" />
+                      {isSubmitting ? '저장 중...' : '저장'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* ── 읽기 모드: 제목 & 내용 ── */}
+                  <div className="px-4 pt-4 pb-2">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                      <span>{timeAgo(post.created_at)}</span>
+                      {post.author_name === nickname && (
+                        <div className="ml-auto flex gap-1">
+                          <button
+                            onClick={startEditing}
+                            className="px-2 py-0.5 text-xs bg-gray-800/60 text-gray-300 rounded hover:bg-gray-700/60"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={handleDeletePost}
+                            className="px-2 py-0.5 text-xs bg-red-900/30 text-red-400 rounded hover:bg-red-900/50"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <h1 className="text-xl font-bold text-gray-100 mb-2">{post.title}</h1>
+                    {post.content && (
+                      <p className="text-gray-400 text-sm whitespace-pre-wrap mb-3">{post.content}</p>
+                    )}
+                  </div>
+
+                  {/* 이미지 미디어 */}
+                  {imageUrls.length > 0 && (
+                    <div className="px-4 mb-3">
+                      {hasMultipleImages ? (
+                        <div className="relative group bg-black/60 rounded-xl overflow-hidden">
+                          <div
+                            id={`detail-slider-${post.id}`}
+                            className="overflow-x-auto overflow-y-hidden scrollbar-hide snap-x snap-mandatory scroll-smooth"
+                            onScroll={(e) => {
+                              const el = e.currentTarget
+                              setCurrentSlideIndex(Math.round(el.scrollLeft / el.offsetWidth))
+                            }}
+                          >
+                            <div className="flex h-[400px]">
+                              {imageUrls.map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex-shrink-0 w-full h-full snap-center relative cursor-pointer hover:opacity-95 transition-opacity"
+                                  onClick={() => {
+                                    setLightboxImages(imageUrls)
+                                    setLightboxIndex(idx)
+                                    setLightboxOpen(true)
+                                  }}
+                                >
+                                  <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${url})` }} />
+                                  <img src={url} alt={`${idx + 1}`} loading="lazy" className="relative w-full h-full object-contain z-10" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const el = document.getElementById(`detail-slider-${post.id}`)
+                              el?.scrollBy({ left: -(el.offsetWidth), behavior: 'smooth' })
+                            }}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 z-20"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const el = document.getElementById(`detail-slider-${post.id}`)
+                              el?.scrollBy({ left: el.offsetWidth, behavior: 'smooth' })
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 z-20"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-20">
+                            {imageUrls.map((_, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  const el = document.getElementById(`detail-slider-${post.id}`)
+                                  el?.scrollTo({ left: el.offsetWidth * idx, behavior: 'smooth' })
+                                }}
+                                className={`w-1.5 h-1.5 rounded-full transition-all ${currentSlideIndex === idx ? 'bg-white w-4' : 'bg-white/50'}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="relative bg-black/60 rounded-xl overflow-hidden h-[400px] cursor-pointer hover:opacity-95 transition-opacity"
+                          onClick={() => {
+                            setLightboxImages(imageUrls)
+                            setLightboxIndex(0)
+                            setLightboxOpen(true)
+                          }}
+                        >
+                          <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${imageUrls[0]})` }} />
+                          <img src={imageUrls[0]} alt={post.title} loading="lazy" className="relative w-full h-full object-contain z-10" />
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* 비디오 */}
-              {post.media_url && post.media_type === 'video' && (
-                <div className="px-4 mb-3">
-                  <div className="bg-black/90 rounded-xl overflow-hidden">
-                    <video src={post.media_url} className="w-full max-h-[400px] object-contain" controls loop muted playsInline />
-                  </div>
-                </div>
-              )}
+                  {/* 비디오 */}
+                  {post.media_url && post.media_type === 'video' && (
+                    <div className="px-4 mb-3">
+                      <div className="bg-black/90 rounded-xl overflow-hidden">
+                        <video src={post.media_url} className="w-full max-h-[400px] object-contain" controls loop muted playsInline />
+                      </div>
+                    </div>
+                  )}
 
-              {/* 유튜브 */}
-              {post.youtube_url && extractYoutubeId(post.youtube_url) && (
-                <div className="px-4 mb-3">
-                  <div className="bg-black/90 rounded-xl overflow-hidden aspect-video">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${extractYoutubeId(post.youtube_url)}`}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                </div>
+                  {/* 유튜브 */}
+                  {post.youtube_url && extractYoutubeId(post.youtube_url) && (
+                    <div className="px-4 mb-3">
+                      <div className="bg-black/90 rounded-xl overflow-hidden aspect-video">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${extractYoutubeId(post.youtube_url)}`}
+                          className="w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* 액션 버튼 */}
@@ -768,47 +925,6 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
       </div>
 
       {/* ── 수정 모달 ── */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowEditModal(false)}>
-          <div className="bg-gray-900 border border-gray-800/60 rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 pt-5 pb-3 border-b border-gray-800/50 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">게시물 수정</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-200"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                placeholder="제목"
-                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm"
-              />
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                placeholder="내용"
-                rows={4}
-                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm resize-none"
-              />
-              <input
-                value={editYoutubeUrl}
-                onChange={(e) => setEditYoutubeUrl(e.target.value)}
-                placeholder="유튜브 URL (선택)"
-                className="w-full px-3 py-2 rounded-lg bg-gray-950 border border-gray-800/60 text-white text-sm"
-              />
-              <div className="flex gap-3">
-                <button onClick={() => setShowEditModal(false)} className="flex-1 py-2 rounded-lg bg-gray-800/60 text-gray-300 text-sm">취소</button>
-                <button
-                  onClick={handleEditPost}
-                  disabled={isSubmitting || !editTitle.trim()}
-                  className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 text-sm"
-                >
-                  {isSubmitting ? '수정 중...' : '저장'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── 신고 모달 ── */}
       {showReportModal && (
