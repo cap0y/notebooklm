@@ -597,8 +597,7 @@ const ImageEditor = () => {
         const diff = Math.abs(d[i] - bgR) + Math.abs(d[i + 1] - bgG) + Math.abs(d[i + 2] - bgB)
         if (diff > maxDiff) maxDiff = diff
       }
-      // 안티앨리어싱 가장자리까지 감지하도록 낮은 threshold 사용
-      const threshold = Math.max(maxDiff * 0.15, 15)
+      const threshold = Math.max(maxDiff * 0.3, 30)
 
       let topRow = h, bottomRow = 0, leftCol = w, rightCol = 0
       for (let row = 0; row < h; row++) {
@@ -807,30 +806,18 @@ const ImageEditor = () => {
 
     const fontFamily = '"Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
     const rawLines = editedText.split('\n')
-
-    // ── font-weight: strokeWidth에 비례하여 세분화 ──
-    // 원본 텍스트의 획 두께에 맞는 weight 선택
-    let weight: string
-    if (textMeasure) {
-      const sw = textMeasure.strokeWidth
-      if (sw > 10) weight = '900'
-      else if (sw > 7) weight = '700'      // bold
-      else if (sw > 5) weight = '600'      // semi-bold
-      else if (sw > 3) weight = '500'      // medium
-      else weight = '400'                  // normal
-    } else {
-      weight = fontBold ? 'bold' : 'normal'
-    }
+    const weight = fontBold ? 'bold' : 'normal'
 
     const targetVisualH = fontSizeOverride ?? srcH
 
-    const findFontSize = (target: number): number => {
+    // 실제 입력 텍스트의 글리프 높이로 폰트 크기를 계산 (고정 문자열 대신)
+    const findFontSize = (target: number, sampleText: string): number => {
       let lo = 1, hi = target * 3
       for (let i = 0; i < 20; i++) {
         const mid = Math.round((lo + hi) / 2)
         if (mid <= lo) break
         ctx.font = `${weight} ${mid}px ${fontFamily}`
-        const m = ctx.measureText('한글테스트')
+        const m = ctx.measureText(sampleText)
         const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent
         if (h < target) lo = mid
         else hi = mid
@@ -838,7 +825,9 @@ const ImageEditor = () => {
       return hi
     }
 
-    let fontSize = findFontSize(Math.round(targetVisualH / rawLines.length))
+    const perLineTarget = Math.round(targetVisualH / rawLines.length)
+    const sampleText = rawLines[0] || '한글'
+    let fontSize = findFontSize(perLineTarget, sampleText)
     fontSize = Math.max(10, Math.min(fontSize, 800))
     ctx.font = `${weight} ${fontSize}px ${fontFamily}`
     ctx.fillStyle = textColor
@@ -897,27 +886,12 @@ const ImageEditor = () => {
 
     const lineH = textAreaHeight / lines.length
     const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
-
-    // ── strokeText로 원본 획 두께 재현 ──
-    // Canvas fillText만으로는 원본의 서브픽셀 렌더링 두께를 재현할 수 없으므로
-    // strokeText를 함께 사용하여 자연스럽게 두께를 보강
-    const strokeExtra = textMeasure ? Math.max(0.3, textMeasure.strokeWidth / 6) : 0
-
     for (let i = 0; i < lines.length; i++) {
       const slotTop = textAreaTop + i * lineH
+      // baseline = slotTop + (슬롯높이 + ascent - descent) / 2
+      // → 글리프의 시각적 중앙이 슬롯 중앙에 오도록 배치
       const baselineY = slotTop + (lineH + glyphAscent - glyphDescent) / 2
-      const drawX = srcX + padX
-
-      // 1) stroke로 두께 보강 (같은 색으로 얇은 외곽선 → 자연스러운 두꺼움)
-      if (strokeExtra > 0.3) {
-        ctx.lineWidth = strokeExtra
-        ctx.strokeStyle = textColor
-        ctx.lineJoin = 'round'
-        ctx.miterLimit = 2
-        ctx.strokeText(lines[i], drawX, baselineY)
-      }
-      // 2) fill로 본문 렌더링
-      ctx.fillText(lines[i], drawX, baselineY)
+      ctx.fillText(lines[i], srcX + padX, baselineY)
     }
 
     setEditVersion((v) => v + 1)
