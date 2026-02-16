@@ -1,41 +1,35 @@
 import express, { Request, Response } from 'express'
 import { query } from '../db'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import crypto from 'crypto'
+import { v2 as cloudinary } from 'cloudinary'
+import dotenv from 'dotenv'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config()
+
 const router = express.Router()
 
-// 피드 이미지 저장 디렉토리
-const feedUploadDir = path.join(__dirname, '..', '..', 'uploads', 'feed')
-if (!fs.existsSync(feedUploadDir)) {
-  fs.mkdirSync(feedUploadDir, { recursive: true })
-}
+// Cloudinary 설정 (환경변수 CLOUDINARY_URL 자동 인식)
+cloudinary.config({
+  secure: true,
+})
 
 /**
- * base64 데이터를 파일로 저장하고 URL을 반환
+ * base64 이미지를 Cloudinary에 업로드하고 URL을 반환
  * - 이미 URL(http//)이면 그대로 반환 (기존 이미지 유지)
- * - data:image/... 형식이면 파일로 저장
+ * - data:image/... 형식이면 Cloudinary에 업로드
  */
-function saveBase64ToFile(base64: string): string {
-  // 이미 파일 URL이면 그대로 반환
-  if (base64.startsWith('/api/files/') || base64.startsWith('http')) {
+async function uploadImage(base64: string): Promise<string> {
+  // 이미 Cloudinary URL이거나 다른 외부 URL이면 그대로 반환
+  if (base64.startsWith('http') || base64.startsWith('/api/files/')) {
     return base64
   }
 
-  // base64 파싱
-  const match = base64.match(/^data:image\/([\w+]+);base64,(.+)$/)
-  if (!match) throw new Error('올바른 이미지 형식이 아닙니다.')
+  // Cloudinary에 base64 업로드
+  const result = await cloudinary.uploader.upload(base64, {
+    folder: 'feed',
+    resource_type: 'image',
+  })
 
-  const ext = match[1] === 'jpeg' ? 'jpg' : match[1].replace('+xml', '')
-  const buffer = Buffer.from(match[2], 'base64')
-  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`
-  const filePath = path.join(feedUploadDir, filename)
-  fs.writeFileSync(filePath, buffer)
-
-  return `/api/files/feed/${filename}`
+  return result.secure_url
 }
 
 // 한글 등 비-ASCII 문자를 헤더에서 안전하게 처리하기 위한 미들웨어
@@ -217,8 +211,8 @@ router.post('/posts', async (req: Request, res: Response) => {
         return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
       }
 
-      // base64를 파일로 변환
-      const savedUrls = mediaBase64.map((b: string) => saveBase64ToFile(b))
+      // Cloudinary에 이미지 업로드
+      const savedUrls = await Promise.all(mediaBase64.map((b: string) => uploadImage(b)))
 
       if (savedUrls.length === 1) {
         mediaUrl = savedUrls[0]
@@ -292,8 +286,8 @@ router.put('/posts/:id', async (req: Request, res: Response) => {
           return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
         }
 
-        // base64를 파일로 변환 (기존 URL은 그대로 유지)
-        const savedUrls = mediaBase64.map((b: string) => saveBase64ToFile(b))
+        // Cloudinary에 업로드 (기존 URL은 그대로 유지)
+        const savedUrls = await Promise.all(mediaBase64.map((b: string) => uploadImage(b)))
 
         if (savedUrls.length === 1) {
           params.push(savedUrls[0])
