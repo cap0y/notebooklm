@@ -294,26 +294,29 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
 
     setIsSubmitting(true)
     try {
-      const formData = new FormData()
-      formData.append('title', newTitle)
-      formData.append('content', newContent)
-      if (newYoutubeUrl.trim()) {
-        formData.append('youtubeUrl', newYoutubeUrl)
-        formData.append('mediaType', 'youtube')
+      // base64 미디어 데이터 구성
+      const body: Record<string, any> = {
+        title: newTitle,
+        content: newContent,
       }
-      if (newMedia.length > 0) {
-        newMedia.forEach((file) => formData.append('media', file))
+      if (newYoutubeUrl.trim()) {
+        body.youtubeUrl = newYoutubeUrl
+        body.mediaType = 'youtube'
+      }
+      if (mediaPreviews.length > 0) {
+        body.mediaBase64 = mediaPreviews
         const hasVideo = newMedia.some((f) => f.type.startsWith('video'))
-        formData.append('mediaType', hasVideo ? 'video' : 'image')
+        body.mediaType = hasVideo ? 'video' : 'image'
       }
 
       const res = await fetch('/api/feed/posts', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-Author-Name': nickname,
           'X-Author-Password': password,
         },
-        body: formData,
+        body: JSON.stringify(body),
       })
 
       if (res.ok) {

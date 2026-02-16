@@ -1,39 +1,7 @@
 import express, { Request, Response } from 'express'
-import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
-import { fileURLToPath } from 'url'
 import { query } from '../db'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const router = express.Router()
-
-// ── 파일 업로드 설정 ──
-const feedMediaDir = path.join(__dirname, '..', '..', 'uploads', 'feed-media')
-if (!fs.existsSync(feedMediaDir)) {
-  fs.mkdirSync(feedMediaDir, { recursive: true })
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, feedMediaDir),
-  filename: (_req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9)
-    const ext = path.extname(file.originalname)
-    cb(null, `feed-${unique}${ext}`)
-  },
-})
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|mp4|mov|webm/
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase())
-    const mime = allowed.test(file.mimetype.split('/')[1] || '')
-    if (ext || mime) cb(null, true)
-    else cb(new Error('지원하지 않는 파일 형식입니다.'))
-  },
-})
 
 // ========== 피드 게시글 API ==========
 
@@ -171,10 +139,10 @@ router.get('/posts/:id', async (req: Request, res: Response) => {
   }
 })
 
-// 피드 게시글 생성 (파일 업로드 포함)
-router.post('/posts', upload.array('media', 10), async (req: Request, res: Response) => {
+// 피드 게시글 생성 (base64 미디어)
+router.post('/posts', async (req: Request, res: Response) => {
   try {
-    const { title, content, youtubeUrl, mediaType: clientMediaType } = req.body
+    const { title, content, youtubeUrl, mediaType: clientMediaType, mediaBase64 } = req.body
     const authorName = req.headers['x-author-name'] as string
     const authorPassword = req.headers['x-author-password'] as string
 
@@ -189,14 +157,16 @@ router.post('/posts', upload.array('media', 10), async (req: Request, res: Respo
     let mediaUrl: string | null = null
     let mediaUrls: string[] | null = null
 
-    const files = req.files as Express.Multer.File[]
-    if (files && files.length > 0) {
-      if (files.length === 1) {
-        mediaUrl = `/api/files/feed-media/${files[0].filename}`
-        mediaType = files[0].mimetype.startsWith('video') ? 'video' : 'image'
+    // base64 미디어 처리
+    if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
+      if (mediaBase64.length === 1) {
+        mediaUrl = mediaBase64[0]
+        if (!mediaType) {
+          mediaType = mediaUrl.startsWith('data:video') ? 'video' : 'image'
+        }
       } else {
-        mediaUrls = files.map((f) => `/api/files/feed-media/${f.filename}`)
-        mediaType = 'image'
+        mediaUrls = mediaBase64
+        if (!mediaType) mediaType = 'image'
       }
     }
 
@@ -228,11 +198,11 @@ router.post('/posts', upload.array('media', 10), async (req: Request, res: Respo
   }
 })
 
-// 피드 게시글 수정
-router.put('/posts/:id', upload.array('media', 10), async (req: Request, res: Response) => {
+// 피드 게시글 수정 (base64 미디어)
+router.put('/posts/:id', async (req: Request, res: Response) => {
   try {
     const postId = parseInt(req.params.id, 10)
-    const { title, content, youtubeUrl } = req.body
+    const { title, content, youtubeUrl, mediaType: clientMediaType, mediaBase64 } = req.body
     const authorPassword = req.headers['x-author-password'] as string
 
     if (!authorPassword) {
@@ -246,17 +216,18 @@ router.put('/posts/:id', upload.array('media', 10), async (req: Request, res: Re
     let updateFields = `title = $1, content = $2, youtube_url = $3, updated_at = CURRENT_TIMESTAMP`
     const params: any[] = [title?.trim(), content?.trim() || null, youtubeUrl?.trim() || null]
 
-    const files = req.files as Express.Multer.File[]
-    if (files && files.length > 0) {
-      if (files.length === 1) {
-        params.push(`/api/files/feed-media/${files[0].filename}`)
-        params.push(files[0].mimetype.startsWith('video') ? 'video' : 'image')
-        updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}`
+    // base64 미디어 처리
+    if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
+      if (mediaBase64.length === 1) {
+        params.push(mediaBase64[0])
+        const mt = clientMediaType || (mediaBase64[0].startsWith('data:video') ? 'video' : 'image')
+        params.push(mt)
+        updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}, media_urls = NULL`
       } else {
-        const urls = files.map((f) => `/api/files/feed-media/${f.filename}`)
-        params.push(urls)
-        params.push('image')
-        updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}`
+        params.push(mediaBase64)
+        const mt = clientMediaType || 'image'
+        params.push(mt)
+        updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}, media_url = NULL`
       }
     }
 
