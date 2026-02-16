@@ -157,13 +157,21 @@ router.post('/posts', async (req: Request, res: Response) => {
     let mediaUrl: string | null = null
     let mediaUrls: string[] | null = null
 
-    // base64 미디어 처리
+    // base64 미디어 처리 (이미지만, 개당 10MB 이하)
+    const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37 // 10MB 원본 ≈ 13.7MB base64
     if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
+      const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
+      if (oversized) {
+        return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
+      }
+      const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
+      if (nonImage) {
+        return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
+      }
+
       if (mediaBase64.length === 1) {
-        mediaUrl = mediaBase64[0]
-        if (!mediaType) {
-          mediaType = mediaUrl.startsWith('data:video') ? 'video' : 'image'
-        }
+        mediaUrl = mediaBase64[0] as string
+        if (!mediaType) mediaType = 'image'
       } else {
         mediaUrls = mediaBase64
         if (!mediaType) mediaType = 'image'
@@ -216,17 +224,25 @@ router.put('/posts/:id', async (req: Request, res: Response) => {
     let updateFields = `title = $1, content = $2, youtube_url = $3, updated_at = CURRENT_TIMESTAMP`
     const params: any[] = [title?.trim(), content?.trim() || null, youtubeUrl?.trim() || null]
 
-    // base64 미디어 처리
+    // base64 미디어 처리 (이미지만, 개당 10MB 이하)
+    const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37
     if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
+      const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
+      if (oversized) {
+        return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
+      }
+      const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
+      if (nonImage) {
+        return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
+      }
+
       if (mediaBase64.length === 1) {
         params.push(mediaBase64[0])
-        const mt = clientMediaType || (mediaBase64[0].startsWith('data:video') ? 'video' : 'image')
-        params.push(mt)
+        params.push('image')
         updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}, media_urls = NULL`
       } else {
         params.push(mediaBase64)
-        const mt = clientMediaType || 'image'
-        params.push(mt)
+        params.push('image')
         updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}, media_url = NULL`
       }
     }

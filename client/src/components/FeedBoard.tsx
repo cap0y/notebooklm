@@ -272,8 +272,10 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     if (files.length > 10) { alert('최대 10개의 파일만 업로드할 수 있습니다.'); return }
-    const over = files.filter((f) => f.size > 50 * 1024 * 1024)
-    if (over.length > 0) { alert('각 파일 크기는 50MB를 초과할 수 없습니다.'); return }
+    const nonImage = files.filter((f) => !f.type.startsWith('image/'))
+    if (nonImage.length > 0) { alert('이미지 파일만 첨부할 수 있습니다.'); return }
+    const over = files.filter((f) => f.size > 10 * 1024 * 1024)
+    if (over.length > 0) { alert('각 파일 크기는 10MB를 초과할 수 없습니다.'); return }
 
     setNewMedia(files)
     const previews: string[] = []
@@ -305,8 +307,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
       }
       if (mediaPreviews.length > 0) {
         body.mediaBase64 = mediaPreviews
-        const hasVideo = newMedia.some((f) => f.type.startsWith('video'))
-        body.mediaType = hasVideo ? 'video' : 'image'
+        body.mediaType = 'image'
       }
 
       const res = await fetch('/api/feed/posts', {
@@ -436,7 +437,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 text-xs transition-colors"
                       >
                         <Image className="w-3.5 h-3.5" />
-                        파일 첨부
+                        그림 첨부
                       </button>
                       <EmojiPicker
                         onSelect={(emoji) => setNewContent((prev) => prev + emoji)}
@@ -444,7 +445,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                       <input
                         id="feed-media-input"
                         type="file"
-                        accept="image/*,video/*"
+                        accept="image/*"
                         multiple
                         onChange={handleMediaSelect}
                         className="hidden"
