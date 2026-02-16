@@ -151,19 +151,20 @@ export const exportVideo = async (
   onProgress: (progress: number, msg: string) => void,
   includeSubtitles: boolean,
   externalCanvas?: HTMLCanvasElement,
+  slideDelay: number = 0,
 ): Promise<Blob> => {
   // WebCodecs 지원 확인
   if (typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined') {
     try {
       return await exportVideoFast(
-        slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas,
+        slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas, slideDelay,
       )
     } catch (err) {
       console.warn('⚡ WebCodecs 인코딩 실패 → MediaRecorder 폴백:', err)
     }
   }
   return exportVideoLegacy(
-    slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas,
+    slides, width, height, subtitleStyle, onProgress, includeSubtitles, externalCanvas, slideDelay,
   )
 }
 
@@ -180,6 +181,7 @@ async function exportVideoFast(
   onProgress: (progress: number, msg: string) => void,
   includeSubtitles: boolean,
   externalCanvas?: HTMLCanvasElement,
+  slideDelay: number = 0,
 ): Promise<Blob> {
   const canvas = externalCanvas || document.createElement('canvas')
   canvas.width = width
@@ -187,7 +189,11 @@ async function exportVideoFast(
   const ctx = canvas.getContext('2d')!
 
   /* ── 1) 슬라이드 정보 계산 ── */
-  const durations = slides.map(getSlideDuration)
+  const baseDurations = slides.map(getSlideDuration)
+  // 마지막 슬라이드를 제외하고 딜레이 추가
+  const durations = baseDurations.map((d, i) =>
+    i < slides.length - 1 ? d + slideDelay : d,
+  )
   const totalDuration = durations.reduce((a, b) => a + b, 0)
   const totalFrames = Math.max(1, Math.ceil(totalDuration * FAST_FPS))
   const isPortrait = width < height
@@ -323,8 +329,9 @@ async function exportVideoFast(
 
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i]
-    const dur = durations[i]
-    const sf = Math.max(1, Math.ceil(dur * FAST_FPS))
+    const baseDur = baseDurations[i]      // 콘텐츠 재생 시간 (자막 표시 구간)
+    const effectiveDur = durations[i]      // 딜레이 포함 총 시간
+    const sf = Math.max(1, Math.ceil(effectiveDur * FAST_FPS))
     const chunks = splitTextIntoChunks(slide.script || '', maxChars)
     const vid = vidMap.get(i)
     const img = imgMap.get(i)
@@ -344,21 +351,31 @@ async function exportVideoFast(
         await new Promise<void>((r) => vEnc.addEventListener('dequeue', r, { once: true }))
       }
 
+      // 현재 프레임의 시간 위치
+      const timeInSlide = f / FAST_FPS
+      const isInDelay = timeInSlide >= baseDur // 딜레이 구간 여부
+
       // 검은 배경
       ctx.fillStyle = '#000'
       ctx.fillRect(0, 0, width, height)
 
-      // 슬라이드 콘텐츠
+      // 슬라이드 콘텐츠 (딜레이 구간에서도 이미지/비디오 마지막 프레임 표시)
       if (vid) {
-        await seekTo(vid, Math.min(f / FAST_FPS, (vid.duration || dur) - 0.02))
+        // 딜레이 구간이면 비디오 마지막 프레임 유지
+        const seekTime = isInDelay
+          ? Math.max(0, (vid.duration || baseDur) - 0.02)
+          : Math.min(timeInSlide, (vid.duration || baseDur) - 0.02)
+        await seekTo(vid, seekTime)
         drawContain(ctx, vid, vid.videoWidth || width, vid.videoHeight || height, width, height)
       } else if (img) {
         drawContain(ctx, img, img.width, img.height, width, height)
       }
 
-      // 자막
-      const sub = resolveSubtitle(slide, f / sf, chunks)
-      renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+      // 자막: 콘텐츠 재생 구간에서만 표시 (딜레이 구간에서는 숨김)
+      if (!isInDelay) {
+        const sub = resolveSubtitle(slide, timeInSlide / baseDur, chunks)
+        renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+      }
 
       // 프레임 인코딩
       const frame = new VideoFrame(canvas, { timestamp: gf * FAST_FRAME_US })
@@ -429,6 +446,7 @@ async function exportVideoLegacy(
   onProgress: (progress: number, msg: string) => void,
   includeSubtitles: boolean,
   externalCanvas?: HTMLCanvasElement,
+  slideDelay: number = 0,
 ): Promise<Blob> {
   const canvas = externalCanvas || document.createElement('canvas')
   canvas.width = width
@@ -472,6 +490,9 @@ async function exportVideoLegacy(
       const scriptText = slide.script || ''
       const textChunks = splitTextIntoChunks(scriptText, maxCharsPerLine)
 
+      const isLastSlide = i === slides.length - 1
+      const delayMs = (!isLastSlide && slideDelay > 0) ? slideDelay * 1000 : 0
+
       if (slide.videoUrl) {
         /* ── 비디오 슬라이드 ── */
         try {
@@ -495,6 +516,8 @@ async function exportVideoLegacy(
             }
           }
 
+          const totalMs = durationMs + delayMs
+
           video.currentTime = 0
           video.muted = !!slide.audioData
           await video.play()
@@ -506,7 +529,8 @@ async function exportVideoLegacy(
             const drawFrame = () => {
               const now = performance.now()
               const elapsed = now - startTime
-              const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
+              const progress = Math.min(Math.max(elapsed / totalMs, 0), 1)
+              const isInDelay = elapsed >= durationMs
 
               // 진행률 보고 (200ms 간격 쓰로틀링)
               if (now - lastReport > 200) {
@@ -519,10 +543,14 @@ async function exportVideoLegacy(
               ctx.fillRect(0, 0, width, height)
               drawContain(ctx, video, video.videoWidth || width, video.videoHeight || height, width, height)
 
-              const sub = resolveSubtitle(slide, progress, textChunks)
-              renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+              // 딜레이 구간에서는 자막 숨김
+              if (!isInDelay) {
+                const contentProgress = Math.min(elapsed / durationMs, 1)
+                const sub = resolveSubtitle(slide, contentProgress, textChunks)
+                renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+              }
 
-              if (elapsed < durationMs) {
+              if (elapsed < totalMs) {
                 requestAnimationFrame(drawFrame)
               } else {
                 resolveFrame()
@@ -538,11 +566,11 @@ async function exportVideoLegacy(
           }
         } catch (err) {
           console.error(`비디오 슬라이드 ${i + 1} 렌더링 실패:`, err)
-          await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest)
+          await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest, delayMs)
         }
       } else {
         /* ── 이미지 슬라이드 ── */
-        await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest)
+        await renderImageSlideLegacy(ctx, slide, durationFallback(slide), i, slides.length, onProgress, width, height, subtitleStyle, includeSubtitles, maxCharsPerLine, audioContext, dest, delayMs)
       }
     }
 
@@ -566,6 +594,7 @@ async function renderImageSlideLegacy(
   maxCharsPerLine: number,
   audioContext: AudioContext,
   dest: MediaStreamAudioDestinationNode,
+  delayMs: number = 0,
 ) {
   const img = new Image()
   img.crossOrigin = 'anonymous'
@@ -583,6 +612,7 @@ async function renderImageSlideLegacy(
     source.start(audioContext.currentTime)
   }
 
+  const totalMs = durationMs + delayMs
   const scriptText = slide.script || ''
   const textChunks = splitTextIntoChunks(scriptText, maxCharsPerLine)
 
@@ -593,7 +623,8 @@ async function renderImageSlideLegacy(
     const drawFrame = () => {
       const now = performance.now()
       const elapsed = now - startTime
-      const progress = Math.min(Math.max(elapsed / durationMs, 0), 1)
+      const progress = Math.min(Math.max(elapsed / totalMs, 0), 1)
+      const isInDelay = elapsed >= durationMs
 
       // 진행률 보고 (200ms 간격 쓰로틀링)
       if (now - lastReport > 200) {
@@ -606,11 +637,14 @@ async function renderImageSlideLegacy(
       ctx.fillRect(0, 0, width, height)
       drawContain(ctx, img, img.width, img.height, width, height)
 
-      // 자막 (audioData 유무 관계없이 표시)
-      const sub = resolveSubtitle(slide, progress, textChunks)
-      renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+      // 자막: 콘텐츠 재생 구간에서만 표시 (딜레이 구간에서는 숨김)
+      if (!isInDelay) {
+        const contentProgress = Math.min(elapsed / durationMs, 1)
+        const sub = resolveSubtitle(slide, contentProgress, textChunks)
+        renderSubtitle(ctx, sub, width, height, subtitleStyle, includeSubtitles)
+      }
 
-      if (elapsed < durationMs) {
+      if (elapsed < totalMs) {
         requestAnimationFrame(drawFrame)
       } else {
         resolveFrame()

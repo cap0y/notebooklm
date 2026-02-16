@@ -45,6 +45,10 @@ const VideoMaker: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(AspectRatio.Video16_9)
   const [includeSubtitles, setIncludeSubtitles] = useState<boolean>(true)
 
+  // 슬라이드 간 딜레이 설정
+  const [slideDelayEnabled, setSlideDelayEnabled] = useState(false)
+  const [slideDelaySec, setSlideDelaySec] = useState(2)
+
   const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Zephyr)
   const [scriptLevel, setScriptLevel] = useState<ScriptLevel>('university')
 
@@ -486,6 +490,7 @@ const VideoMaker: React.FC = () => {
         (p, msg) => setGenerationState((prev) => ({ ...prev, progress: p, statusMessage: msg })),
         includeSubtitles,
         canvas,
+        slideDelayEnabled ? slideDelaySec : 0,
       )
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -562,6 +567,37 @@ const VideoMaker: React.FC = () => {
             <div className={`w-3 h-3 rounded-full ${includeSubtitles ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-600'}`}></div>
             <span className="hidden sm:inline">자막 {includeSubtitles ? 'ON' : 'OFF'}</span>
           </button>
+
+          {/* 슬라이드 간 딜레이 */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setSlideDelayEnabled(!slideDelayEnabled)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-xs font-bold ${
+                slideDelayEnabled
+                  ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-500'
+              }`}
+              title="슬라이드 전환 시 딜레이 추가"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden sm:inline">딜레이</span>
+            </button>
+            {slideDelayEnabled && (
+              <select
+                value={slideDelaySec}
+                onChange={(e) => setSlideDelaySec(Number(e.target.value))}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-cyan-400 outline-none focus:border-cyan-500/50 cursor-pointer"
+              >
+                {[1, 2, 3, 4, 5].map((sec) => (
+                  <option key={sec} value={sec}>
+                    {sec}초
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
           {/* AI 모델 선택 */}
           <div className="relative">
