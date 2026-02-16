@@ -1,7 +1,42 @@
 import express, { Request, Response } from 'express'
 import { query } from '../db'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import crypto from 'crypto'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const router = express.Router()
+
+// 피드 이미지 저장 디렉토리
+const feedUploadDir = path.join(__dirname, '..', '..', 'uploads', 'feed')
+if (!fs.existsSync(feedUploadDir)) {
+  fs.mkdirSync(feedUploadDir, { recursive: true })
+}
+
+/**
+ * base64 데이터를 파일로 저장하고 URL을 반환
+ * - 이미 URL(http//)이면 그대로 반환 (기존 이미지 유지)
+ * - data:image/... 형식이면 파일로 저장
+ */
+function saveBase64ToFile(base64: string): string {
+  // 이미 파일 URL이면 그대로 반환
+  if (base64.startsWith('/api/files/') || base64.startsWith('http')) {
+    return base64
+  }
+
+  // base64 파싱
+  const match = base64.match(/^data:image\/([\w+]+);base64,(.+)$/)
+  if (!match) throw new Error('올바른 이미지 형식이 아닙니다.')
+
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1].replace('+xml', '')
+  const buffer = Buffer.from(match[2], 'base64')
+  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`
+  const filePath = path.join(feedUploadDir, filename)
+  fs.writeFileSync(filePath, buffer)
+
+  return `/api/files/feed/${filename}`
+}
 
 // 한글 등 비-ASCII 문자를 헤더에서 안전하게 처리하기 위한 미들웨어
 router.use((req, _res, next) => {
@@ -152,7 +187,7 @@ router.get('/posts/:id', async (req: Request, res: Response) => {
   }
 })
 
-// 피드 게시글 생성 (base64 미디어)
+// 피드 게시글 생성
 router.post('/posts', async (req: Request, res: Response) => {
   try {
     const { title, content, youtubeUrl, mediaType: clientMediaType, mediaBase64 } = req.body
@@ -170,23 +205,26 @@ router.post('/posts', async (req: Request, res: Response) => {
     let mediaUrl: string | null = null
     let mediaUrls: string[] | null = null
 
-    // base64 미디어 처리 (이미지만, 개당 10MB 이하)
-    const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37 // 10MB 원본 ≈ 13.7MB base64
+    // 이미지 처리: base64 → 파일 저장 (개당 10MB 이하)
+    const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37
     if (Array.isArray(mediaBase64) && mediaBase64.length > 0) {
       const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
       if (oversized) {
         return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
       }
-      const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
+      const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image') && !b.startsWith('/api/files/'))
       if (nonImage) {
         return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
       }
 
-      if (mediaBase64.length === 1) {
-        mediaUrl = mediaBase64[0] as string
+      // base64를 파일로 변환
+      const savedUrls = mediaBase64.map((b: string) => saveBase64ToFile(b))
+
+      if (savedUrls.length === 1) {
+        mediaUrl = savedUrls[0]
         if (!mediaType) mediaType = 'image'
       } else {
-        mediaUrls = mediaBase64
+        mediaUrls = savedUrls
         if (!mediaType) mediaType = 'image'
       }
     }
@@ -219,7 +257,7 @@ router.post('/posts', async (req: Request, res: Response) => {
   }
 })
 
-// 피드 게시글 수정 (base64 미디어)
+// 피드 게시글 수정
 router.put('/posts/:id', async (req: Request, res: Response) => {
   try {
     const postId = parseInt(req.params.id, 10)
@@ -237,28 +275,32 @@ router.put('/posts/:id', async (req: Request, res: Response) => {
     let updateFields = `title = $1, content = $2, youtube_url = $3, updated_at = CURRENT_TIMESTAMP`
     const params: any[] = [title?.trim(), content?.trim() || null, youtubeUrl?.trim() || null]
 
-    // base64 미디어 처리 (이미지만, 개당 10MB 이하)
+    // 이미지 처리: base64 → 파일 저장, 기존 URL은 유지
     const MAX_BASE64_SIZE = 10 * 1024 * 1024 * 1.37
     if (Array.isArray(mediaBase64)) {
       if (mediaBase64.length === 0) {
-        // 이미지 모두 삭제
         updateFields += `, media_url = NULL, media_urls = NULL, media_type = NULL`
       } else {
         const oversized = mediaBase64.some((b: string) => b.length > MAX_BASE64_SIZE)
         if (oversized) {
           return res.status(400).json({ error: '각 이미지는 10MB를 초과할 수 없습니다.' })
         }
-        const nonImage = mediaBase64.some((b: string) => !b.startsWith('data:image'))
+        const nonImage = mediaBase64.some((b: string) =>
+          !b.startsWith('data:image') && !b.startsWith('/api/files/')
+        )
         if (nonImage) {
           return res.status(400).json({ error: '이미지 파일만 첨부할 수 있습니다.' })
         }
 
-        if (mediaBase64.length === 1) {
-          params.push(mediaBase64[0])
+        // base64를 파일로 변환 (기존 URL은 그대로 유지)
+        const savedUrls = mediaBase64.map((b: string) => saveBase64ToFile(b))
+
+        if (savedUrls.length === 1) {
+          params.push(savedUrls[0])
           params.push('image')
           updateFields += `, media_url = $${params.length - 1}, media_type = $${params.length}, media_urls = NULL`
         } else {
-          params.push(mediaBase64)
+          params.push(savedUrls)
           params.push('image')
           updateFields += `, media_urls = $${params.length - 1}, media_type = $${params.length}, media_url = NULL`
         }
