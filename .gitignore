@@ -15,8 +15,9 @@ vite.config.ts.*
 replit.nix
 .cache/
 
-# 업로드 파일
-uploads/
+# 업로드 파일 (feed 이미지는 git에 저장)
+uploads/*
+!uploads/feed/
 
 # OS
 Thumbs.db
