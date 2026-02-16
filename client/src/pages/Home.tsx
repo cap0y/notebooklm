@@ -12,6 +12,8 @@ import {
   Eraser,
   Ruler,
   Video,
+  ExternalLink,
+  BookOpen,
 } from 'lucide-react'
 import Footer from '../components/Footer'
 
@@ -280,6 +282,34 @@ const Home = () => {
               </div>
             </div>
           </button>
+        </div>
+
+        {/* ── 외부 서비스 바로가기 ── */}
+        <div className="mb-8 sm:mb-14">
+          <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4 sm:mb-6 text-center">
+            외부 서비스
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <a
+              href="https://notebooklm.google.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-gray-900/60 border border-gray-800/60 rounded-xl p-4 sm:p-5 hover:border-blue-500/40 hover:bg-blue-500/5 active:bg-gray-800/40 transition-all group flex items-center gap-3 sm:gap-4"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <BookOpen className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-white font-medium text-sm sm:text-base">Google NotebookLM</h3>
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-400 transition-colors shrink-0" />
+                </div>
+                <p className="text-gray-500 text-xs mt-1">
+                  AI 기반 노트북으로 자료 정리 → PDF 내보내기 후 동영상 스튜디오에 활용
+                </p>
+              </div>
+            </a>
+          </div>
         </div>
 
       </div>
