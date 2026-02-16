@@ -3,6 +3,19 @@ import { query } from '../db'
 
 const router = express.Router()
 
+// 한글 등 비-ASCII 문자를 헤더에서 안전하게 처리하기 위한 미들웨어
+router.use((req, _res, next) => {
+  try {
+    if (req.headers['x-author-name']) {
+      req.headers['x-author-name'] = decodeURIComponent(req.headers['x-author-name'] as string)
+    }
+    if (req.headers['x-author-password']) {
+      req.headers['x-author-password'] = decodeURIComponent(req.headers['x-author-password'] as string)
+    }
+  } catch { /* 디코딩 실패 시 원본 유지 */ }
+  next()
+})
+
 // ========== 피드 게시글 API ==========
 
 // 피드 게시글 목록 조회

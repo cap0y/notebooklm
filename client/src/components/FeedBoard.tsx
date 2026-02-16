@@ -128,7 +128,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         sortBy,
       })
       const headers: Record<string, string> = {}
-      if (nickname) headers['X-Author-Name'] = nickname
+      if (nickname) headers['X-Author-Name'] = encodeURIComponent(nickname)
 
       const res = await fetch(`/api/feed/posts?${params}`, { headers })
       if (res.ok) {
@@ -175,7 +175,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
+          'X-Author-Name': encodeURIComponent(nickname),
         },
         body: JSON.stringify({ voteType }),
       })
@@ -210,7 +210,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
+          'X-Author-Name': encodeURIComponent(nickname),
         },
         body: JSON.stringify({ emoji }),
       })
@@ -250,7 +250,7 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
+          'X-Author-Name': encodeURIComponent(nickname),
         },
         body: JSON.stringify({ reason: reportReason.trim() }),
       })
@@ -320,8 +320,8 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
-          'X-Author-Password': password,
+          'X-Author-Name': encodeURIComponent(nickname),
+          'X-Author-Password': encodeURIComponent(password),
         },
         body: JSON.stringify(body),
       })

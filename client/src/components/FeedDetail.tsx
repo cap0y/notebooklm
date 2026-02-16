@@ -116,7 +116,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
   const loadPost = async () => {
     try {
       const headers: Record<string, string> = {}
-      if (nickname) headers['X-Author-Name'] = nickname
+      if (nickname) headers['X-Author-Name'] = encodeURIComponent(nickname)
       const res = await fetch(`/api/feed/posts/${postId}`, { headers })
       if (res.ok) {
         const data = await res.json()
@@ -133,7 +133,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
   const loadComments = async () => {
     try {
       const headers: Record<string, string> = {}
-      if (nickname) headers['X-Author-Name'] = nickname
+      if (nickname) headers['X-Author-Name'] = encodeURIComponent(nickname)
       const res = await fetch(`/api/feed/posts/${postId}/comments`, { headers })
       if (res.ok) {
         const data = await res.json()
@@ -155,7 +155,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     try {
       const res = await fetch(`/api/feed/posts/${postId}/vote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Author-Name': nickname },
+        headers: { 'Content-Type': 'application/json', 'X-Author-Name': encodeURIComponent(nickname) },
         body: JSON.stringify({ voteType }),
       })
       if (res.ok) loadPost()
@@ -170,7 +170,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     try {
       const res = await fetch(`/api/feed/posts/${postId}/comments/${commentId}/vote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Author-Name': nickname },
+        headers: { 'Content-Type': 'application/json', 'X-Author-Name': encodeURIComponent(nickname) },
         body: JSON.stringify({ voteType }),
       })
       if (res.ok) loadComments()
@@ -188,8 +188,8 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
-          'X-Author-Password': password,
+          'X-Author-Name': encodeURIComponent(nickname),
+          'X-Author-Password': encodeURIComponent(password),
         },
         body: JSON.stringify({ content: newComment.trim(), parentId: replyTo }),
       })
@@ -216,7 +216,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     try {
       const res = await fetch(`/api/feed/posts/${postId}/comments/${commentId}`, {
         method: 'DELETE',
-        headers: { 'X-Author-Name': nickname, 'X-Author-Password': password },
+        headers: { 'X-Author-Name': encodeURIComponent(nickname), 'X-Author-Password': encodeURIComponent(password) },
       })
       if (res.ok) {
         loadComments()
@@ -234,7 +234,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     try {
       const res = await fetch(`/api/feed/posts/${postId}/report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Author-Name': nickname },
+        headers: { 'Content-Type': 'application/json', 'X-Author-Name': encodeURIComponent(nickname) },
         body: JSON.stringify({ reason: reportReason.trim() }),
       })
       if (res.ok) {
@@ -341,8 +341,8 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-Author-Name': nickname,
-          'X-Author-Password': password,
+          'X-Author-Name': encodeURIComponent(nickname),
+          'X-Author-Password': encodeURIComponent(password),
         },
         body: JSON.stringify(body),
       })
@@ -368,7 +368,7 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     try {
       const res = await fetch(`/api/feed/posts/${postId}`, {
         method: 'DELETE',
-        headers: { 'X-Author-Name': nickname, 'X-Author-Password': password },
+        headers: { 'X-Author-Name': encodeURIComponent(nickname), 'X-Author-Password': encodeURIComponent(password) },
       })
       if (res.ok) onBack()
       else {
