@@ -9,7 +9,10 @@ import {
   Plus,
   Settings,
   MessageCircle,
+  Newspaper,
 } from 'lucide-react'
+import FeedBoard from '../components/FeedBoard'
+import FeedDetail from '../components/FeedDetail'
 
 // ── 타입 정의 ──
 interface ChatMessage {
@@ -22,10 +25,11 @@ interface ChatMessage {
 
 // 기본 채널 목록 (고정)
 const DEFAULT_CHANNELS = [
-  { id: 'general', name: '일반', description: '자유롭게 대화하세요' },
-  { id: 'questions', name: '질문', description: 'AI 한글 에디터 사용법 질문' },
-  { id: 'tips', name: '팁 공유', description: '유용한 팁과 노하우를 공유' },
-  { id: 'feedback', name: '피드백', description: '기능 제안 및 개선 요청' },
+  { id: 'general', name: '일반', description: '자유롭게 대화하세요', type: 'chat' as const },
+  { id: 'questions', name: '질문', description: 'AI 한글 에디터 사용법 질문', type: 'chat' as const },
+  { id: 'tips', name: '팁 공유', description: '유용한 팁과 노하우를 공유', type: 'chat' as const },
+  { id: 'feedback', name: '피드백', description: '기능 제안 및 개선 요청', type: 'chat' as const },
+  { id: 'feed', name: '피드 게시판', description: '자유 게시판 - 글, 이미지, 동영상 공유', type: 'feed' as const },
 ]
 
 // 닉네임 색상 생성 (문자열 해시 기반으로 일관된 색상)
@@ -108,6 +112,9 @@ export default function ChatRoom() {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState('')
 
+  // 피드 게시판 상태
+  const [feedDetailPostId, setFeedDetailPostId] = useState<number | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -132,8 +139,10 @@ export default function ChatRoom() {
     }
   }, [])
 
-  // ── 새 메시지 폴링 ──
+  // ── 새 메시지 폴링 (채팅 채널만) ──
   const pollNewMessages = useCallback(async () => {
+    const channelInfo = DEFAULT_CHANNELS.find((c) => c.id === activeChannel)
+    if (channelInfo?.type === 'feed') return
     if (lastMsgIdRef.current === 0) return
     try {
       const res = await fetch(
@@ -150,8 +159,13 @@ export default function ChatRoom() {
     }
   }, [activeChannel])
 
-  // ── 채널 변경 시 메시지 로드 ──
+  // ── 채널 변경 시 메시지 로드 (채팅 채널만) ──
   useEffect(() => {
+    const channelInfo = DEFAULT_CHANNELS.find((c) => c.id === activeChannel)
+    if (channelInfo?.type === 'feed') {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setMessages([])
     lastMsgIdRef.current = 0
@@ -414,11 +428,12 @@ export default function ChatRoom() {
               채팅 채널
             </span>
           </div>
-          {DEFAULT_CHANNELS.map((ch) => (
+          {DEFAULT_CHANNELS.filter(ch => ch.type === 'chat').map((ch) => (
             <button
               key={ch.id}
               onClick={() => {
                 setActiveChannel(ch.id)
+                setFeedDetailPostId(null)
                 setShowChannelSidebar(false)
               }}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors mb-0.5 ${
@@ -428,6 +443,31 @@ export default function ChatRoom() {
               }`}
             >
               <Hash className="w-4 h-4 shrink-0 opacity-60" />
+              <span className="truncate">{ch.name}</span>
+            </button>
+          ))}
+
+          {/* 피드 게시판 섹션 */}
+          <div className="flex items-center justify-between px-2 mb-1 mt-4">
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+              게시판
+            </span>
+          </div>
+          {DEFAULT_CHANNELS.filter(ch => ch.type === 'feed').map((ch) => (
+            <button
+              key={ch.id}
+              onClick={() => {
+                setActiveChannel(ch.id)
+                setFeedDetailPostId(null)
+                setShowChannelSidebar(false)
+              }}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors mb-0.5 ${
+                activeChannel === ch.id
+                  ? 'bg-gray-700/50 text-white font-medium'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'
+              }`}
+            >
+              <Newspaper className="w-4 h-4 shrink-0 opacity-60" />
               <span className="truncate">{ch.name}</span>
             </button>
           ))}
@@ -475,7 +515,7 @@ export default function ChatRoom() {
         </div>
       </div>
 
-      {/* ─── 메인 채팅 영역 ─── */}
+      {/* ─── 메인 영역 ─── */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#313338]">
         {/* 채널 헤더 */}
         <div className="h-12 px-4 flex items-center gap-3 border-b border-gray-900/50 shadow-sm shrink-0">
@@ -487,7 +527,11 @@ export default function ChatRoom() {
             <MessageCircle className="w-5 h-5" />
           </button>
 
-          <Hash className="w-5 h-5 text-gray-400" />
+          {activeChannelInfo?.type === 'feed' ? (
+            <Newspaper className="w-5 h-5 text-gray-400" />
+          ) : (
+            <Hash className="w-5 h-5 text-gray-400" />
+          )}
           <h3 className="font-semibold text-white text-sm">
             {activeChannelInfo?.name || activeChannel}
           </h3>
@@ -501,73 +545,95 @@ export default function ChatRoom() {
           )}
         </div>
 
-        {/* 메시지 영역 */}
-        <div
-          ref={messagesContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto pb-4"
-        >
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-            </div>
-          ) : (
-            <>
-              {renderMessages()}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
-
-        {/* 입력 영역 */}
-        <div className="px-4 pb-4 shrink-0">
-          {!nickname ? (
-            <button
-              onClick={() => {
-                setTempNickname('')
-                setTempPassword('')
-                setShowNicknameSetup(true)
-              }}
-              className="w-full py-3 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors text-sm font-medium"
-            >
-              닉네임을 설정하고 채팅에 참여하세요
-            </button>
-          ) : (
-            <div className="relative">
-              <textarea
-                ref={inputRef}
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`#${activeChannelInfo?.name || activeChannel}에 메시지 보내기`}
-                rows={1}
-                maxLength={2000}
-                className="w-full px-4 py-3 pr-12 rounded-lg bg-[#383A40] text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                style={{
-                  minHeight: '44px',
-                  maxHeight: '200px',
-                  height: 'auto',
-                }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = 'auto'
-                  target.style.height = Math.min(target.scrollHeight, 200) + 'px'
-                }}
+        {/* 피드 게시판 OR 채팅 영역 */}
+        {activeChannelInfo?.type === 'feed' ? (
+          <div className="flex-1 overflow-hidden relative">
+            {feedDetailPostId !== null ? (
+              <FeedDetail
+                postId={feedDetailPostId}
+                nickname={nickname}
+                password={password}
+                onBack={() => setFeedDetailPostId(null)}
               />
-              <button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || isSending}
-                className="absolute right-2 bottom-2 p-2 rounded-lg text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
-              >
-                {isSending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
-              </button>
+            ) : (
+              <FeedBoard
+                nickname={nickname}
+                password={password}
+                onPostClick={(postId) => setFeedDetailPostId(postId)}
+              />
+            )}
+          </div>
+        ) : (
+          <>
+            {/* 메시지 영역 */}
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto pb-4"
+            >
+              {isLoading ? (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {renderMessages()}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* 입력 영역 */}
+            <div className="px-4 pb-4 shrink-0">
+              {!nickname ? (
+                <button
+                  onClick={() => {
+                    setTempNickname('')
+                    setTempPassword('')
+                    setShowNicknameSetup(true)
+                  }}
+                  className="w-full py-3 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors text-sm font-medium"
+                >
+                  닉네임을 설정하고 채팅에 참여하세요
+                </button>
+              ) : (
+                <div className="relative">
+                  <textarea
+                    ref={inputRef}
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={`#${activeChannelInfo?.name || activeChannel}에 메시지 보내기`}
+                    rows={1}
+                    maxLength={2000}
+                    className="w-full px-4 py-3 pr-12 rounded-lg bg-[#383A40] text-gray-200 placeholder-gray-500 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                    style={{
+                      minHeight: '44px',
+                      maxHeight: '200px',
+                      height: 'auto',
+                    }}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement
+                      target.style.height = 'auto'
+                      target.style.height = Math.min(target.scrollHeight, 200) + 'px'
+                    }}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!inputMessage.trim() || isSending}
+                    className="absolute right-2 bottom-2 p-2 rounded-lg text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                  >
+                    {isSending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ─── 닉네임 설정 모달 ─── */}

@@ -6,6 +6,7 @@ import fs from 'fs'
 import { initBoardTables } from './db'
 import postsRouter from './routes/posts'
 import chatRouter from './routes/chat'
+import feedRouter from './routes/feed'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -33,6 +34,9 @@ app.use('/api/posts', postsRouter)
 
 // 채팅 API 라우트
 app.use('/api/chat', chatRouter)
+
+// 피드 게시판 API 라우트
+app.use('/api/feed', feedRouter)
 
 // DB 초기화 (테이블 생성)
 initBoardTables().catch((err) => {

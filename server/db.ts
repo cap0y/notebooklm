@@ -85,10 +85,111 @@ export async function initBoardTables() {
     `)
     console.log('📦 chat_messages 테이블 준비 완료')
 
+    // ─── 피드 게시판 테이블 ───
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_posts (
+        id SERIAL PRIMARY KEY,
+        author_name VARCHAR(50) NOT NULL,
+        password VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT,
+        media_type VARCHAR(20),
+        media_url TEXT,
+        media_urls TEXT[],
+        thumbnail_url TEXT,
+        youtube_url TEXT,
+        upvotes INTEGER DEFAULT 0,
+        downvotes INTEGER DEFAULT 0,
+        comment_count INTEGER DEFAULT 0,
+        view_count INTEGER DEFAULT 0,
+        report_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `)
+    console.log('📦 feed_posts 테이블 준비 완료')
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_comments (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER REFERENCES feed_posts(id) ON DELETE CASCADE,
+        parent_id INTEGER REFERENCES feed_comments(id) ON DELETE CASCADE,
+        author_name VARCHAR(50) NOT NULL,
+        password VARCHAR(100) NOT NULL,
+        content TEXT NOT NULL,
+        upvotes INTEGER DEFAULT 0,
+        downvotes INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `)
+    console.log('📦 feed_comments 테이블 준비 완료')
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_votes (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER REFERENCES feed_posts(id) ON DELETE CASCADE,
+        author_name VARCHAR(50) NOT NULL,
+        vote_type VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, author_name)
+      );
+    `)
+    console.log('📦 feed_votes 테이블 준비 완료')
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_comment_votes (
+        id SERIAL PRIMARY KEY,
+        comment_id INTEGER REFERENCES feed_comments(id) ON DELETE CASCADE,
+        author_name VARCHAR(50) NOT NULL,
+        vote_type VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(comment_id, author_name)
+      );
+    `)
+    console.log('📦 feed_comment_votes 테이블 준비 완료')
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feed_reports (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER REFERENCES feed_posts(id) ON DELETE CASCADE,
+        author_name VARCHAR(50) NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, author_name)
+      );
+    `)
+    console.log('📦 feed_reports 테이블 준비 완료')
+
     // 인덱스 생성
     await client.query(`CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)`)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_created ON chat_messages(channel, created_at ASC)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_posts_created ON feed_posts(created_at DESC)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_comments_post ON feed_comments(post_id)`)
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_feed_votes_post ON feed_votes(post_id)`)
+
+    // 피드 댓글 수 자동 업데이트 트리거
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_feed_comments_count()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' THEN
+          UPDATE feed_posts SET comment_count = comment_count + 1 WHERE id = NEW.post_id;
+          RETURN NEW;
+        ELSIF TG_OP = 'DELETE' THEN
+          UPDATE feed_posts SET comment_count = comment_count - 1 WHERE id = OLD.post_id;
+          RETURN OLD;
+        END IF;
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+    `)
+    await client.query(`DROP TRIGGER IF EXISTS trigger_feed_comments_count ON feed_comments`)
+    await client.query(`
+      CREATE TRIGGER trigger_feed_comments_count
+        AFTER INSERT OR DELETE ON feed_comments
+        FOR EACH ROW EXECUTE FUNCTION update_feed_comments_count();
+    `)
 
     // 댓글 수 자동 업데이트 트리거
     await client.query(`
