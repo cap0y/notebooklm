@@ -5,6 +5,7 @@ import {
   AlertTriangle, Eye, Youtube, SmilePlus,
 } from 'lucide-react'
 import EmojiPicker from './EmojiPicker'
+import ImageLightbox from './ImageLightbox'
 
 // ── 타입 정의 ──
 interface Reaction {
@@ -107,6 +108,11 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
 
   // 정렬
   const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'trending'>('latest')
+
+  // 이미지 라이트박스
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -602,7 +608,15 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                         >
                           <div className="flex h-[360px]">
                             {imageUrls.map((url, idx) => (
-                              <div key={idx} className="flex-shrink-0 w-full h-full snap-center relative">
+                              <div
+                                key={idx}
+                                className="flex-shrink-0 w-full h-full snap-center relative cursor-pointer hover:opacity-95 transition-opacity"
+                                onClick={() => {
+                                  setLightboxImages(imageUrls)
+                                  setLightboxIndex(idx)
+                                  setLightboxOpen(true)
+                                }}
+                              >
                                 <div
                                   className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none"
                                   style={{ backgroundImage: `url(${url})` }}
@@ -655,7 +669,14 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
                         </div>
                       </div>
                     ) : (
-                      <div className="relative bg-black/60 rounded-xl overflow-hidden h-[360px]">
+                      <div
+                        className="relative bg-black/60 rounded-xl overflow-hidden h-[360px] cursor-pointer hover:opacity-95 transition-opacity"
+                        onClick={() => {
+                          setLightboxImages(imageUrls)
+                          setLightboxIndex(0)
+                          setLightboxOpen(true)
+                        }}
+                      >
                         <div
                           className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none"
                           style={{ backgroundImage: `url(${imageUrls[0]})` }}
@@ -876,6 +897,14 @@ const FeedBoard: React.FC<FeedBoardProps> = ({ nickname, password, onPostClick }
           </div>
         </div>
       )}
+
+      {/* 이미지 라이트박스 */}
+      <ImageLightbox
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   )
 }

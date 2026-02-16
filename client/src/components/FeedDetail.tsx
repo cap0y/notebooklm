@@ -5,6 +5,7 @@ import {
   Trash2, X,
 } from 'lucide-react'
 import EmojiPicker from './EmojiPicker'
+import ImageLightbox from './ImageLightbox'
 
 // ── 타입 ──
 interface FeedPost {
@@ -340,6 +341,11 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
     )
   }
 
+  // 이미지 라이트박스
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
   const isReported = (post.report_count || 0) >= 10
   const imageUrls =
     post.media_urls && post.media_urls.length > 0
@@ -435,7 +441,15 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                       >
                         <div className="flex h-[400px]">
                           {imageUrls.map((url, idx) => (
-                            <div key={idx} className="flex-shrink-0 w-full h-full snap-center relative">
+                            <div
+                              key={idx}
+                              className="flex-shrink-0 w-full h-full snap-center relative cursor-pointer hover:opacity-95 transition-opacity"
+                              onClick={() => {
+                                setLightboxImages(imageUrls)
+                                setLightboxIndex(idx)
+                                setLightboxOpen(true)
+                              }}
+                            >
                               <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${url})` }} />
                               <img src={url} alt={`${idx + 1}`} loading="lazy" className="relative w-full h-full object-contain z-10" />
                             </div>
@@ -474,7 +488,14 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
                       </div>
                     </div>
                   ) : (
-                    <div className="relative bg-black/60 rounded-xl overflow-hidden h-[400px]">
+                    <div
+                      className="relative bg-black/60 rounded-xl overflow-hidden h-[400px] cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => {
+                        setLightboxImages(imageUrls)
+                        setLightboxIndex(0)
+                        setLightboxOpen(true)
+                      }}
+                    >
                       <div className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 pointer-events-none" style={{ backgroundImage: `url(${imageUrls[0]})` }} />
                       <img src={imageUrls[0]} alt={post.title} loading="lazy" className="relative w-full h-full object-contain z-10" />
                     </div>
@@ -826,6 +847,14 @@ const FeedDetail: React.FC<FeedDetailProps> = ({ postId, nickname, password, onB
           </div>
         </div>
       )}
+
+      {/* 이미지 라이트박스 */}
+      <ImageLightbox
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   )
 }
