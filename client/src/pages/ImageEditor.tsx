@@ -76,6 +76,7 @@ const ImageEditor = () => {
   // ─── 원본 텍스트 측정 결과 ─── //
   interface TextMeasure {
     textHeight: number
+    textWidth: number
     textLeft: number
     textTop: number
     strokeWidth: number
@@ -638,6 +639,7 @@ const ImageEditor = () => {
 
       return {
         textHeight,
+        textWidth: rightCol - leftCol + 1,
         textTop: topRow,
         textLeft: leftCol,
         strokeWidth,
@@ -886,12 +888,35 @@ const ImageEditor = () => {
 
     const lineH = textAreaHeight / lines.length
     const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
+
+    // ── 원본 텍스트 폭에 맞춰 수평 스케일링 ──
+    // Canvas 폰트(Malgun Gothic 등)는 원본 이미지 폰트보다 자간이 넓을 수 있음
+    // 원본 textWidth가 측정되어 있으면, 렌더링 폭을 비교해 수평으로 압축/확장
+    let scaleX = 1
+    if (textMeasure && textMeasure.textWidth > 0) {
+      const renderedW = ctx.measureText(lines[0] || '').width
+      if (renderedW > 0) {
+        scaleX = textMeasure.textWidth / renderedW
+        // 너무 극단적인 스케일은 방지 (0.7 ~ 1.3 범위)
+        scaleX = Math.max(0.7, Math.min(1.3, scaleX))
+      }
+    }
+
     for (let i = 0; i < lines.length; i++) {
       const slotTop = textAreaTop + i * lineH
-      // baseline = slotTop + (슬롯높이 + ascent - descent) / 2
-      // → 글리프의 시각적 중앙이 슬롯 중앙에 오도록 배치
       const baselineY = slotTop + (lineH + glyphAscent - glyphDescent) / 2
-      ctx.fillText(lines[i], srcX + padX, baselineY)
+      const drawX = srcX + padX
+
+      if (Math.abs(scaleX - 1) > 0.01) {
+        // 수평 스케일링 적용: 글자 시작점 기준으로 가로만 압축
+        ctx.save()
+        ctx.translate(drawX, 0)
+        ctx.scale(scaleX, 1)
+        ctx.fillText(lines[i], 0, baselineY)
+        ctx.restore()
+      } else {
+        ctx.fillText(lines[i], drawX, baselineY)
+      }
     }
 
     setEditVersion((v) => v + 1)
