@@ -861,10 +861,24 @@ const ImageEditor = () => {
     }
     ctx.fillStyle = textColor
 
-    const lineH = srcH / lines.length
-    const padX = 2
+    // ── 원본 텍스트 위치 기반 정렬 ──
+    // textMeasure가 있으면 원본 텍스트의 정확한 위치(textTop, textHeight)를 사용
+    // 없으면 선택 영역 전체를 기준으로 배치
+    let textAreaTop: number
+    let textAreaHeight: number
+
+    if (textMeasure) {
+      textAreaTop = srcY + textMeasure.textTop
+      textAreaHeight = textMeasure.textHeight
+    } else {
+      textAreaTop = srcY
+      textAreaHeight = srcH
+    }
+
+    const lineH = textAreaHeight / lines.length
+    const padX = textMeasure ? Math.min(textMeasure.textLeft, 10) : 2
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], srcX + padX, srcY + i * lineH + lineH / 2)
+      ctx.fillText(lines[i], srcX + padX, textAreaTop + i * lineH + lineH / 2)
     }
 
     setEditVersion((v) => v + 1)
