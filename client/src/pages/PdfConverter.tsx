@@ -14,14 +14,12 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Layers,
 } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { GoogleGenAI, Type } from '@google/genai'
 import { useAppStore, type ConvertedPage, type TextItem } from '../store/useAppStore'
 import { ElementType, type SlideData } from '../types/slide'
 import SlidePreview from '../components/SlidePreview'
-import LayerViewer from '../components/LayerViewer'
 import { type ModelTier, MODEL_TIERS, getModelTier, setModelTier as saveModelTier, getTextModel } from '../utils/modelConfig'
 
 // PDF.js 워커 설정 (CDN에서 로드)
@@ -396,7 +394,6 @@ const PdfConverter = () => {
   const [isGeneratingPptx, setIsGeneratingPptx] = useState(false)
   const [genProgressText, setGenProgressText] = useState('')
   const [selectedModelTier, setSelectedModelTier] = useState<ModelTier>('standard')
-  const [showLayerViewer, setShowLayerViewer] = useState(false)
 
   // localStorage에서 Gemini API Key + 모델 티어 불러오기
   useEffect(() => {
@@ -745,14 +742,14 @@ const PdfConverter = () => {
   }
 
   /**
-   * 페이지 분석 공통 로직 (PPT 변환 & 레이어 분리에서 공유)
+   * PPT 변환 1단계: 슬라이드 분석 → 미리보기 표시
    *
    * AI 모드 (API Key 있음): Gemini AI 비전으로 텍스트/도형/이미지 완전 분리
    * 기본 모드 (API Key 없음): PDF.js getTextContent()로 텍스트 구조 추출
    *
-   * 분석 완료 후 onSuccess 콜백으로 결과를 전달하여 PPT 또는 레이어 뷰어를 표시
+   * 분석 완료 후 SlidePreview 화면이 표시되어 사용자가 편집 가능
    */
-  const analyzePages = async (onSuccess: () => void) => {
+  const startPptConversion = async () => {
     setIsDownloading(true)
     setPptProgress('분석 시작...')
     setError(null)
@@ -768,9 +765,11 @@ const PdfConverter = () => {
 
         if (useAI) {
           setPptProgress(`슬라이드 ${idx + 1}/${pages.length} — AI 분석 중...`)
+          // JPEG로 변환하여 Gemini API 전송 크기 최적화
           const jpegUrl = await toJpeg(page.dataUrl)
           const base64 = jpegUrl.split(',')[1]
           const slideData = await analyzeSlideWithGemini(apiKey!, base64, idx, MODEL_TIERS[selectedModelTier].textModel)
+          // display용 원본 이미지 (full data URL)
           slideData.originalImageBase64 = page.dataUrl
           slideData.mode = 'ai'
           newSlidesData.push(slideData)
@@ -801,7 +800,7 @@ const PdfConverter = () => {
       }
 
       setSlidesData(newSlidesData)
-      onSuccess()
+      setShowPreview(true)
       setPptProgress('')
     } catch (err: any) {
       console.error('분석 오류:', err)
@@ -820,22 +819,6 @@ const PdfConverter = () => {
     } finally {
       setIsDownloading(false)
     }
-  }
-
-  /** PPT 변환: 분석 후 SlidePreview 표시 */
-  const startPptConversion = () => {
-    setShowLayerViewer(false)
-    analyzePages(() => setShowPreview(true))
-  }
-
-  /** 레이어 분리: 분석 후 LayerViewer 표시 (이미 분석 완료 시 바로 표시) */
-  const startLayerAnalysis = () => {
-    setShowPreview(false)
-    if (slidesData.length > 0) {
-      setShowLayerViewer(true)
-      return
-    }
-    analyzePages(() => setShowLayerViewer(true))
   }
 
   /**
@@ -1021,7 +1004,6 @@ const PdfConverter = () => {
     setPptProgress('')
     setSlidesData([])
     setShowPreview(false)
-    setShowLayerViewer(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -1036,13 +1018,7 @@ const PdfConverter = () => {
 
   return (
     <div className="flex-1 flex flex-col p-4 sm:p-6 overflow-auto">
-      {showLayerViewer && slidesData.length > 0 ? (
-        <LayerViewer
-          slides={slidesData}
-          onBack={() => setShowLayerViewer(false)}
-          fileName={fileName || 'image'}
-        />
-      ) : showPreview && slidesData.length > 0 ? (
+      {showPreview && slidesData.length > 0 ? (
         <SlidePreview
           slides={slidesData}
           onUpdateSlides={setSlidesData}
@@ -1186,23 +1162,6 @@ const PdfConverter = () => {
                   <>
                     <Presentation className="w-4 h-4 sm:w-5 sm:h-5" />
                     PPT 변환
-                  </>
-                )}
-              </button>
-              <button
-                onClick={startLayerAnalysis}
-                disabled={isDownloading}
-                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white rounded-xl font-semibold text-sm sm:text-base transition-colors shadow-lg shadow-purple-900/30 flex-1 sm:flex-none justify-center"
-              >
-                {isDownloading && pptProgress ? (
-                  <>
-                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    <span className="text-xs sm:text-sm">{pptProgress}</span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
-                    레이어 분리
                   </>
                 )}
               </button>
