@@ -15,6 +15,8 @@ import {
   Check,
   ChevronUp,
   ChevronDown,
+  Clipboard,
+  Image as ImageIcon,
 } from 'lucide-react'
 import Tesseract from 'tesseract.js'
 import { useAppStore } from '../store/useAppStore'
@@ -98,6 +100,16 @@ const ImageEditor = () => {
 
   // ─── 모바일 패널 열림/닫힘 상태 ─── //
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+
+  // ─── 이미지 붙여넣기(덮어쓰기) 상태 ─── //
+  const [pasteImage, setPasteImage] = useState<HTMLCanvasElement | null>(null)
+  const [pasteRect, setPasteRect] = useState<SelectionRect | null>(null)
+  const [isPasteMode, setIsPasteMode] = useState(false)
+  const [isPasteDragging, setIsPasteDragging] = useState(false)
+  const [pasteDragOffset, setPasteDragOffset] = useState({ x: 0, y: 0 })
+  const [pasteResizeHandle, setPasteResizeHandle] = useState<HandleType>(null)
+  const [pasteResizeOrigin, setPasteResizeOrigin] = useState<SelectionRect | null>(null)
+  const [pasteResizeStart, setPasteResizeStart] = useState({ x: 0, y: 0 })
 
   /**
    * 스토어에서 편집할 이미지 로드
@@ -228,7 +240,42 @@ const ImageEditor = () => {
         })
       }
     }
-  }, [editCanvas, scale, selection, location.pathname, editVersion, isMoving, moveImageCanvas, resizeHandle, resizeImageCanvas])
+
+    // ── 이미지 붙여넣기 오버레이 ──
+    if (isPasteMode && pasteImage && pasteRect) {
+      ctx.globalAlpha = 0.95
+      ctx.drawImage(pasteImage, pasteRect.x, pasteRect.y, pasteRect.width, pasteRect.height)
+      ctx.globalAlpha = 1.0
+
+      // 테두리
+      ctx.strokeStyle = '#22c55e'
+      ctx.lineWidth = 2
+      ctx.setLineDash([6, 4])
+      ctx.strokeRect(pasteRect.x, pasteRect.y, pasteRect.width, pasteRect.height)
+      ctx.setLineDash([])
+
+      // 꼭짓점 리사이즈 핸들
+      const phs = 10
+      ctx.fillStyle = '#22c55e'
+      ;[
+        [pasteRect.x, pasteRect.y],
+        [pasteRect.x + pasteRect.width, pasteRect.y],
+        [pasteRect.x, pasteRect.y + pasteRect.height],
+        [pasteRect.x + pasteRect.width, pasteRect.y + pasteRect.height],
+      ].forEach(([cx, cy]) => {
+        ctx.fillRect(cx - phs / 2, cy - phs / 2, phs, phs)
+      })
+
+      // "붙여넣기 모드" 라벨
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.8)'
+      ctx.fillRect(pasteRect.x, pasteRect.y - 24, 120, 20)
+      ctx.fillStyle = '#fff'
+      ctx.font = '12px sans-serif'
+      ctx.textBaseline = 'top'
+      ctx.fillText('📋 이미지 붙여넣기', pasteRect.x + 4, pasteRect.y - 22)
+      ctx.textBaseline = 'alphabetic'
+    }
+  }, [editCanvas, scale, selection, location.pathname, editVersion, isMoving, moveImageCanvas, resizeHandle, resizeImageCanvas, isPasteMode, pasteImage, pasteRect])
 
   // ─── 마우스/터치 이벤트 ─── //
 
@@ -306,10 +353,93 @@ const ImageEditor = () => {
     [selection]
   )
 
+  // ─── 붙여넣기 오버레이 헬퍼 ─── //
+  const detectPasteHandle = useCallback(
+    (coords: { x: number; y: number }): HandleType => {
+      if (!pasteRect) return null
+      const { x, y, width, height } = pasteRect
+      const T = 12
+      if (Math.abs(coords.x - x) < T && Math.abs(coords.y - y) < T) return 'nw'
+      if (Math.abs(coords.x - (x + width)) < T && Math.abs(coords.y - y) < T) return 'ne'
+      if (Math.abs(coords.x - x) < T && Math.abs(coords.y - (y + height)) < T) return 'sw'
+      if (Math.abs(coords.x - (x + width)) < T && Math.abs(coords.y - (y + height)) < T) return 'se'
+      return null
+    },
+    [pasteRect]
+  )
+
+  const isInsidePasteRect = useCallback(
+    (coords: { x: number; y: number }): boolean => {
+      if (!pasteRect) return false
+      return (
+        coords.x >= pasteRect.x &&
+        coords.x <= pasteRect.x + pasteRect.width &&
+        coords.y >= pasteRect.y &&
+        coords.y <= pasteRect.y + pasteRect.height
+      )
+    },
+    [pasteRect]
+  )
+
+  // ─── 붙여넣기 확인/취소 ─── //
+  const confirmPaste = useCallback(() => {
+    if (!editCanvas || !pasteImage || !pasteRect) {
+      setIsPasteMode(false)
+      setPasteImage(null)
+      setPasteRect(null)
+      return
+    }
+
+    const snapshot = editCanvas.toDataURL('image/png')
+    setHistory((prev) => {
+      const next = [...prev, snapshot]
+      return next.length > 10 ? next.slice(-10) : next
+    })
+
+    const ctx = editCanvas.getContext('2d')!
+    const sx = editCanvas.width / canvasSize.width
+    const sy = editCanvas.height / canvasSize.height
+    const dstX = Math.round(pasteRect.x * sx)
+    const dstY = Math.round(pasteRect.y * sy)
+    const dstW = Math.round(pasteRect.width * sx)
+    const dstH = Math.round(pasteRect.height * sy)
+
+    ctx.drawImage(pasteImage, 0, 0, pasteImage.width, pasteImage.height, dstX, dstY, dstW, dstH)
+    setEditVersion((v) => v + 1)
+
+    setPasteImage(null)
+    setPasteRect(null)
+    setIsPasteMode(false)
+  }, [editCanvas, pasteImage, pasteRect, canvasSize])
+
+  const cancelPaste = useCallback(() => {
+    setPasteImage(null)
+    setPasteRect(null)
+    setIsPasteMode(false)
+  }, [])
+
   const handlePointerDown = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
       if (!editCanvas) return
       const coords = getCanvasCoords(e)
+
+      // ─── 붙여넣기 모드 처리 ─── //
+      if (isPasteMode && pasteRect) {
+        const pHandle = detectPasteHandle(coords)
+        if (pHandle) {
+          setPasteResizeHandle(pHandle)
+          setPasteResizeOrigin({ ...pasteRect })
+          setPasteResizeStart(coords)
+          return
+        }
+        if (isInsidePasteRect(coords)) {
+          setIsPasteDragging(true)
+          setPasteDragOffset({ x: coords.x - pasteRect.x, y: coords.y - pasteRect.y })
+          return
+        }
+        // 밖을 클릭하면 무시 (명시적으로 확인/취소 버튼 사용)
+        return
+      }
 
       const handle = detectHandle(coords)
       if (handle && selection) {
@@ -403,12 +533,68 @@ const ImageEditor = () => {
       setDetectedFontSize(null)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editCanvas, getCanvasCoords, detectHandle, selection, isInsideSelection, canvasSize]
+    [editCanvas, getCanvasCoords, detectHandle, selection, isInsideSelection, canvasSize, isPasteMode, pasteRect, detectPasteHandle, isInsidePasteRect]
   )
 
   const handlePointerMove = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
       const coords = getCanvasCoords(e)
+
+      // ─── 붙여넣기 모드 처리 ─── //
+      if (isPasteMode && pasteRect) {
+        if (pasteResizeHandle && pasteResizeOrigin) {
+          const dx = coords.x - pasteResizeStart.x
+          const dy = coords.y - pasteResizeStart.y
+          const o = pasteResizeOrigin
+          const aspect = o.width / o.height
+          let nx = o.x, ny = o.y, nw = o.width, nh = o.height
+
+          if (pasteResizeHandle === 'se') {
+            nw = Math.max(20, o.width + dx)
+            nh = nw / aspect
+          } else if (pasteResizeHandle === 'sw') {
+            nw = Math.max(20, o.width - dx)
+            nh = nw / aspect
+            nx = o.x + o.width - nw
+          } else if (pasteResizeHandle === 'ne') {
+            nw = Math.max(20, o.width + dx)
+            nh = nw / aspect
+            ny = o.y + o.height - nh
+          } else if (pasteResizeHandle === 'nw') {
+            nw = Math.max(20, o.width - dx)
+            nh = nw / aspect
+            nx = o.x + o.width - nw
+            ny = o.y + o.height - nh
+          }
+
+          setPasteRect({ x: nx, y: ny, width: nw, height: nh })
+          return
+        }
+        if (isPasteDragging) {
+          setPasteRect({
+            ...pasteRect,
+            x: coords.x - pasteDragOffset.x,
+            y: coords.y - pasteDragOffset.y,
+          })
+          return
+        }
+        // 커서 변경
+        if (canvasRef.current && !('touches' in e)) {
+          const pH = detectPasteHandle(coords)
+          if (pH) {
+            const cursors: Record<string, string> = {
+              nw: 'nwse-resize', se: 'nwse-resize',
+              ne: 'nesw-resize', sw: 'nesw-resize',
+            }
+            canvasRef.current.style.cursor = cursors[pH] || 'default'
+          } else if (isInsidePasteRect(coords)) {
+            canvasRef.current.style.cursor = 'move'
+          } else {
+            canvasRef.current.style.cursor = 'default'
+          }
+        }
+        return
+      }
 
       if (isMoving && selection) {
         setSelection({
@@ -455,10 +641,18 @@ const ImageEditor = () => {
         height: Math.abs(coords.y - selectionStart.y),
       })
     },
-    [isSelecting, selectionStart, getCanvasCoords, resizeHandle, resizeOrigin, getCursorForHandle, isMoving, selection, moveOffset, isInsideSelection]
+    [isSelecting, selectionStart, getCanvasCoords, resizeHandle, resizeOrigin, getCursorForHandle, isMoving, selection, moveOffset, isInsideSelection, isPasteMode, pasteRect, pasteResizeHandle, pasteResizeOrigin, pasteResizeStart, isPasteDragging, pasteDragOffset, detectPasteHandle, isInsidePasteRect]
   )
 
   const handlePointerUp = useCallback(() => {
+    // ─── 붙여넣기 모드 처리 ─── //
+    if (isPasteMode) {
+      setIsPasteDragging(false)
+      setPasteResizeHandle(null)
+      setPasteResizeOrigin(null)
+      return
+    }
+
     if (isMoving && moveImageCanvas && selection && editCanvas) {
       const ctx = editCanvas.getContext('2d')!
       const sx = editCanvas.width / canvasSize.width
@@ -495,7 +689,7 @@ const ImageEditor = () => {
       if (prev && (prev.width < 10 || prev.height < 10)) return null
       return prev
     })
-  }, [resizeHandle, isMoving, moveImageCanvas, selection, editCanvas, canvasSize])
+  }, [resizeHandle, isMoving, moveImageCanvas, selection, editCanvas, canvasSize, isPasteMode])
 
   // ─── OCR 실행 ─── //
   const runOCR = async () => {
@@ -955,6 +1149,90 @@ const ImageEditor = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [location.pathname])
 
+  // ─── 클립보드 이미지 붙여넣기 (Ctrl+V) ─── //
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (location.pathname !== '/image-editor') return
+      if (!editCanvas) return
+      // textarea/input 에 포커스 중이면 무시
+      const tag = document.activeElement?.tagName
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const blob = item.getAsFile()
+          if (!blob) continue
+
+          const url = URL.createObjectURL(blob)
+          const img = new window.Image()
+          img.onload = () => {
+            const cvs = document.createElement('canvas')
+            cvs.width = img.naturalWidth
+            cvs.height = img.naturalHeight
+            cvs.getContext('2d')!.drawImage(img, 0, 0)
+            URL.revokeObjectURL(url)
+
+            // 캔버스 크기의 50% 이내로 초기 크기 설정
+            const maxW = canvasSize.width * 0.5
+            const maxH = canvasSize.height * 0.5
+            const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1)
+            const displayW = img.naturalWidth * ratio
+            const displayH = img.naturalHeight * ratio
+
+            // 선택 영역이 있으면 그 안에 맞추기, 없으면 중앙 배치
+            let x: number, y: number, w: number, h: number
+            if (selection && selection.width > 10 && selection.height > 10) {
+              x = selection.x
+              y = selection.y
+              w = selection.width
+              h = selection.height
+            } else {
+              x = (canvasSize.width - displayW) / 2
+              y = (canvasSize.height - displayH) / 2
+              w = displayW
+              h = displayH
+            }
+
+            setPasteImage(cvs)
+            setPasteRect({ x, y, width: w, height: h })
+            setIsPasteMode(true)
+            setSelection(null)
+          }
+          img.src = url
+          break
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [editCanvas, canvasSize, location.pathname, selection])
+
+  // ─── 붙여넣기 모드 키보드: Enter(확인) / Escape(취소) ─── //
+  const confirmPasteRef = useRef(confirmPaste)
+  confirmPasteRef.current = confirmPaste
+  const cancelPasteRef = useRef(cancelPaste)
+  cancelPasteRef.current = cancelPaste
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (!isPasteMode) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        confirmPasteRef.current()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancelPasteRef.current()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isPasteMode])
+
   // ─── Ctrl+마우스 휠 확대/축소 ─── //
   useEffect(() => {
     const container = containerRef.current
@@ -1195,6 +1473,18 @@ const ImageEditor = () => {
               <p className="text-xs text-gray-500">5. 핸들로 영역 크기 조절 가능</p>
               <p className="text-xs text-gray-500">6. Ctrl+Z로 실행 취소</p>
             </div>
+
+            {/* 이미지 붙여넣기 안내 */}
+            <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3 space-y-1.5 hidden sm:block">
+              <p className="text-xs text-green-400 font-medium flex items-center gap-1.5">
+                <Clipboard className="w-3.5 h-3.5" />
+                이미지 붙여넣기 (덮어쓰기)
+              </p>
+              <p className="text-xs text-gray-500">1. 외부에서 이미지를 복사 (Ctrl+C)</p>
+              <p className="text-xs text-gray-500">2. 이 화면에서 Ctrl+V로 붙여넣기</p>
+              <p className="text-xs text-gray-500">3. 드래그로 위치 이동, 꼭짓점으로 크기 조절</p>
+              <p className="text-xs text-gray-500">4. Enter로 적용, ESC로 취소</p>
+            </div>
           </div>
         )}
       </div>
@@ -1238,14 +1528,16 @@ const ImageEditor = () => {
         </button>
 
         {/* 안내 (데스크탑만) */}
-        <div className="hidden lg:flex items-center gap-2 text-sm text-gray-400">
-          <div className="w-px h-6 bg-gray-700" />
-          <Square className="w-4 h-4 text-blue-400" />
-          <span>Ctrl+휠 확대 → 드래그 선택 → 핸들로 크기 조절</span>
-        </div>
+        {!isPasteMode && (
+          <div className="hidden lg:flex items-center gap-2 text-sm text-gray-400">
+            <div className="w-px h-6 bg-gray-700" />
+            <Square className="w-4 h-4 text-blue-400" />
+            <span>Ctrl+휠 확대 · 드래그 선택 · Ctrl+V 이미지 붙여넣기</span>
+          </div>
+        )}
 
         {/* 선택 영역 있을 때 OCR 버튼 */}
-        {hasValidSelection && (
+        {hasValidSelection && !isPasteMode && (
           <>
             <div className="w-px h-5 sm:h-6 bg-gray-700" />
             <button
@@ -1273,7 +1565,7 @@ const ImageEditor = () => {
         )}
 
         {/* 실행 취소 */}
-        {history.length > 0 && (
+        {history.length > 0 && !isPasteMode && (
           <>
             <div className="w-px h-5 sm:h-6 bg-gray-700" />
             <button
@@ -1282,6 +1574,34 @@ const ImageEditor = () => {
             >
               <Undo2 className="w-4 h-4" />
               <span className="hidden sm:inline">실행 취소</span>
+            </button>
+          </>
+        )}
+
+        {/* ═══ 이미지 붙여넣기 모드 컨트롤 ═══ */}
+        {isPasteMode && (
+          <>
+            <div className="w-px h-5 sm:h-6 bg-gray-700" />
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-1.5">
+              <ImageIcon className="w-4 h-4 text-green-400" />
+              <span className="text-green-300 text-xs sm:text-sm font-medium">이미지 붙여넣기</span>
+              <span className="text-green-400/60 text-xs hidden sm:inline">드래그로 이동 · 꼭짓점으로 크기 조절</span>
+            </div>
+            <button
+              onClick={confirmPaste}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs sm:text-sm transition-colors font-medium"
+            >
+              <Check className="w-4 h-4" />
+              <span className="hidden sm:inline">적용</span>
+              <span className="text-green-200/60 text-[10px] hidden lg:inline">(Enter)</span>
+            </button>
+            <button
+              onClick={cancelPaste}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs sm:text-sm transition-colors"
+            >
+              <X className="w-4 h-4" />
+              <span className="hidden sm:inline">취소</span>
+              <span className="text-gray-500 text-[10px] hidden lg:inline">(ESC)</span>
             </button>
           </>
         )}
